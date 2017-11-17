@@ -1,0 +1,156 @@
+#include <iostream>
+#include <string>
+#include <cassert>
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdexcept>
+#include <stdio.h>
+
+#include "pfm.h"
+#include "rbfm.h"
+#include "test_util.h"
+
+using namespace std;
+
+int RBFTest_8(RecordBasedFileManager *rbfm) {
+    // Functions tested
+    // 1. Create Record-Based File
+    // 2. Open Record-Based File
+    // 3. Insert Record
+    // 4. Read Record
+    // 5. Close Record-Based File
+    // 6. Destroy Record-Based File
+    cout << endl << "***** In RBF Test Case 8 *****" << endl;
+
+    RC rc;
+    string fileName = "test8-something";
+
+    // Create a file named "test8"
+    rc = rbfm->createFile(fileName);
+    assert(rc == success && "Creating the file should not fail.");
+
+    rc = createFileShouldSucceed(fileName);
+    assert(rc == success && "Creating the file should not fail.");
+
+    // Open the file "test8"
+    FileHandle fileHandle;
+    rc = rbfm->openFile(fileName, fileHandle);
+    assert(rc == success && "Opening the file should not fail.");
+
+    RID rid1;
+    RID rid2;
+    RID rid3;
+    RID rid4;
+    RID rid5;
+    int recordSize = 0;
+    void *record = malloc(100);
+    void *returnedData = malloc(100);
+
+    vector<Attribute> recordDescriptor;
+    createRecordDescriptor(recordDescriptor);
+
+    // Initialize a NULL field indicator
+    int nullFieldsIndicatorActualSize = getActualByteForNullsIndicator(recordDescriptor.size());
+    unsigned char *nullsIndicator = (unsigned char *) malloc(nullFieldsIndicatorActualSize);
+    memset(nullsIndicator, 0, nullFieldsIndicatorActualSize);
+
+    // Insert a record into a file and print the record
+    prepareRecord(recordDescriptor.size(), nullsIndicator, 8, "Anteater", 25, 177.8, 6200, record, &recordSize);
+    cout << endl << "Inserting Data:" << endl;
+//    rbfm->printRecord(recordDescriptor, record);
+
+    rc = rbfm->insertRecord(fileHandle, recordDescriptor, record, rid1);
+    prepareRecord(recordDescriptor.size(), nullsIndicator, 8, "Anteater", 26, 177.8, 6200, record, &recordSize);
+    rc = rbfm->insertRecord(fileHandle, recordDescriptor, record, rid2);
+    prepareRecord(recordDescriptor.size(), nullsIndicator, 8, "Anteater", 27, 177.8, 6200, record, &recordSize);
+    rc = rbfm->insertRecord(fileHandle, recordDescriptor, record, rid3);
+//    prepareRecord(recordDescriptor.size(), nullsIndicator, 8, "Anteater", 28, 177.8, 6200, record, &recordSize);
+//    rc = rbfm->insertRecord(fileHandle, recordDescriptor, record, rid4);
+//    prepareRecord(recordDescriptor.size(), nullsIndicator, 8, "Anteater", 29, 177.8, 6200, record, &recordSize);
+//    rc = rbfm->insertRecord(fileHandle, recordDescriptor, record, rid5);
+    assert(rc == success && "Inserting a record should not fail.");
+
+    // Given the rid, read the record from file
+    rc = rbfm->readRecord(fileHandle, recordDescriptor, rid1, returnedData);
+    assert(rc == success && "Reading a record should not fail.");
+
+    cout << endl << "Returned Data 1:" << endl;
+    rbfm->printRecord(recordDescriptor, returnedData);
+    rc = rbfm->readRecord(fileHandle, recordDescriptor, rid2, returnedData);
+    cout << endl << "Returned Data 2:" << endl;
+    rbfm->printRecord(recordDescriptor, returnedData);
+    rc = rbfm->readRecord(fileHandle, recordDescriptor, rid3, returnedData);
+    cout << endl << "Returned Data 3:" << endl;
+    rbfm->printRecord(recordDescriptor, returnedData);
+
+    // Compare whether the two memory blocks are the same
+    if(memcmp(record, returnedData, recordSize) != 0)
+    {
+        cout << "[FAIL] Test Case 8 Failed!" << endl << endl;
+        free(record);
+        free(returnedData);
+        return -1;
+    }
+
+    cout << "\n\n\n\n\n\nCalling scan: \n";
+    RBFM_ScanIterator* rbfmScanIterator = new RBFM_ScanIterator();
+    vector<string> attrNames;
+    attrNames.push_back("EmpName");
+    attrNames.push_back("Height");
+    void* value = malloc(100);
+    *(char*)value ='a';
+    rbfm -> scan(fileHandle, recordDescriptor, "EmpName", NO_OP, value, attrNames, *rbfmScanIterator);
+    RID rid;
+    void* data = calloc(100, 1);
+    cout << "Age is: \n";
+    while(rbfmScanIterator->getNextRecord(rid, data) != RBFM_EOF) {
+        cout << "Scan result length: " << (*(int*)((char*)data + 1)) << endl;
+        char* result = (char*)calloc(10, 1);
+        memcpy(result, (char*)data+5, (*(int*)((char*)data + 1)));
+        cout << "Scan result string: " << result << endl;
+        cout << "Scan result Height: " << *(float*)((char*)data + 13) << endl;
+    }
+
+
+//    cout << "Read Attribute" << endl;
+//    void *readAttData = malloc(100);
+//    rbfm->readAttribute(fileHandle,recordDescriptor, rid1, "EmpName", readAttData);
+//    void *bytes = malloc(sizeof(int));
+//    memcpy(bytes, (char*) readAttData + 1, sizeof(int));
+//    int offsetResult = *(int *) bytes;
+//    cout << "OffsetResult readAtt: " << offsetResult <<endl;
+//
+//    char* actualData = (char*)malloc(100);
+//    memcpy(actualData, (char*)readAttData + 5, offsetResult);
+//    cout << actualData << endl;
+
+    // Close the file "test8"
+    rc = rbfm->closeFile(fileHandle);
+    assert(rc == success && "Closing the file should not fail.");
+
+    // Destroy the file
+    rc = rbfm->destroyFile(fileName);
+    assert(rc == success && "Destroying the file should not fail.");
+
+    rc = destroyFileShouldSucceed(fileName);
+    assert(rc == success  && "Destroying the file should not fail.");
+
+    free(record);
+    free(returnedData);
+
+    cout << "RBF Test Case 8 Finished! The result will be examined." << endl << endl;
+
+    return 0;
+}
+
+int main()
+{
+    // To test the functionality of the record-based file manager
+    RecordBasedFileManager *rbfm = RecordBasedFileManager::instance();
+
+    remove("test8-something");
+
+    RC rcmain = RBFTest_8(rbfm);
+    return rcmain;
+}
