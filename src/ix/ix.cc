@@ -474,7 +474,30 @@ RC IndexManager::getRightInsertPage(void* pageData, const Attribute &attribute, 
     int offset = 0;
     offset += sizeof(PageNum);
     while(offset < endOfRecordsOffset) {
+        switch(attribute.type) {
+            case TypeInt: {
+                int key = *(int*)((char*)pageData + offset);
+                PageNum pi = *(PageNum*)((char*)pageData + offset + sizeof(int));
+                if(offset + sizeof(int) + sizeof(PageNum) >= endOfRecordsOffset) {
 
+                } else {
+                    int nextKey = *(int*)((char*)pageData + offset + sizeof(int) + sizeof(PageNum));
+
+                }
+                break;
+            }
+            case TypeReal: {
+
+                break;
+            }
+            case TypeVarChar: {
+
+                break;
+            }
+            default:
+                cout << "[ERROR]Invalid attribute type in index" << endl;
+                break;
+        }
     }
 }
 /**
@@ -506,7 +529,7 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                     insertIntoTree(ixfileHandle, p0, attribute, key, rid, newChildPageNum);
                 } else {
                     PageNum pi = getRightInsertPage(pageData, attribute, key);
-                    result = insertIntoTree();
+//                    result = insertIntoTree();
                 }
                 break;
             }
@@ -632,7 +655,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 
     }
 
-    int newChildEntry = -1;
+    PageNum newChildEntry = -1;
     result = insertIntoTree(ixfileHandle, indexRootNodeMap[ixfileHandle.fileName], attribute, key, rid, newChildEntry);
     return result;
 }
