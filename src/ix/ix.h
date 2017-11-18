@@ -55,11 +55,6 @@ public:
     // Print the B+ tree in pre-order (in a JSON record format)
     void printBtree(IXFileHandle &ixfileHandle, const Attribute &attribute) const;
 
-protected:
-    IndexManager();
-    ~IndexManager();
-
-private:
     static IndexManager *_index_manager;
 
     RC insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum, const Attribute &attribute, const void *key, const RID &rid,
@@ -68,6 +63,13 @@ private:
     unsigned short getFreeSpaceFromPage(void *pageData);
 
     int getPageTypeFromPage(void *pageData);
+
+    int findLeaf(IXFileHandle &ixfileHandle, void* pageData, PageNum currPageNum, const Attribute &attribute, const void* lowKey);
+
+    int getIntValueAtOffset(void *pageRecord, int offset);
+
+    float getRealValueAtOffset(void *pageRecord, int offset);
+
 
     int createLeafEntry(const Attribute &attribute, const void* key, const RID &rid, void *record, int &recordLen);
 
@@ -89,6 +91,11 @@ private:
     RC getRightInsertPage(void *pageData, const Attribute &attribute, const void *key);
 
     int getEndOfRecordOffsetFromPage(void *pageData);
+
+	protected:
+		IndexManager();
+		~IndexManager();
+
 };
 
 typedef enum {
@@ -111,6 +118,24 @@ public:
 
     // Terminate index scan
     RC close();
+
+    //class members
+    IXFileHandle* ixfileHandle;
+    Attribute attribute;
+    const void* lowKey;
+    const void* highKey;
+    bool lowKeyInclusive;
+    bool highKeyInclusive;
+    IndexManager* indexManager;
+
+    void* latestKey;
+    int scanOffset;
+    PageNum leafPageNum;
+    bool end;
+
+    float getRealValueAtOffset(void *pageRecord, int offset);
+    int getIntValueAtOffset(void *pageRecord, int offset);
+    int findLeaf(IndexManager &indexManager, void* pageData, PageNum currPageNum);
 };
 
 

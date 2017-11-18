@@ -428,15 +428,18 @@ RC testVarcharInsertion(const string &indexFileName, const Attribute &attribute)
 }
 
 RC test_leafRootSplitFloat() {
+	cout << "I am here" << endl;
     RID rid;
     float key = 20.4;
     rid.pageNum = 500;
     rid.slotNum = 20;
 
-    RID rid2;
-    float key2 = 25.6;
-    rid2.pageNum = 510;
-    rid2.slotNum = 22;
+//    indexManager = IndexManager::instance();
+
+//    RID rid2;
+//    float key2 = 25.6;
+//    rid2.pageNum = 510;
+//    rid2.slotNum = 22;
 
     unsigned readPageCount = 0;
     unsigned writePageCount = 0;
@@ -473,7 +476,7 @@ RC test_leafRootSplitFloat() {
 
     cerr << endl << "Before Insert - R W A: " << readPageCount << " " <<  writePageCount << " " << appendPageCount << endl;
 
-    for(int i=0;i<350;i++) {
+    for(int i=0;i<30;i++) {
         rid.pageNum = i;
         rid.slotNum = i+1;
         key = key+1;
@@ -503,11 +506,56 @@ RC test_leafRootSplitFloat() {
     cerr << endl;
     indexManager->printBtree(ixfileHandle, attrHeight);
 
+    float lowHeight = 25.4;
+    float highHeight = 29.4;
+    IX_ScanIterator ix_ScanIterator;
+    cout << "Before scan" << endl;
+
+    indexManager->scan(ixfileHandle,attrHeight, &lowHeight, &highHeight, false, false, ix_ScanIterator);
+
+    RID scanRID;
+    float scanKey;
+//    void *scanKey = malloc(4, 1);
+    int ret = ix_ScanIterator.getNextEntry(scanRID, &scanKey);
+    cout << "ret: " << ret << endl;
+    cout << "scanKey: " << scanKey << endl;
+    cout << "scanRID: " << scanRID.pageNum << ", " << scanRID.slotNum << endl;
+
+    cout << endl;
+//    float scanKey2 = 0;
+//
+	ret = ix_ScanIterator.getNextEntry(scanRID, &scanKey);
+	cout << "ret: " << ret << endl;
+	cout << "scanRID: " << scanRID.pageNum << ", " << scanRID.slotNum << endl;
+	cout << "scanKey: " << scanKey << endl;
+	cout << endl;
+//
+	ret = ix_ScanIterator.getNextEntry(scanRID, &scanKey);
+	cout << "ret: " << ret << endl;
+	cout << "scanRID: " << scanRID.pageNum << ", " << scanRID.slotNum << endl;
+	cout << "scanKey: " << scanKey << endl;
+	cout << endl;
+
+	ret = ix_ScanIterator.getNextEntry(scanRID, &scanKey);
+	cout << "ret: " << ret << endl;
+	cout << "scanRID: " << scanRID.pageNum << ", " << scanRID.slotNum << endl;
+	cout << "scanKey: " << scanKey << endl;
+	cout << endl;
+
+	ret = ix_ScanIterator.getNextEntry(scanRID, &scanKey);
+	cout << "ret: " << ret << endl;
+	cout << "scanRID: " << scanRID.pageNum << ", " << scanRID.slotNum << endl;
+	cout << "scanKey: " << scanKey << endl;
+	cout << endl;
+
+//    ix_ScanIterator.getNextEntry(scanRID, scanKey);
+
     // close index file
     rc = indexManager->closeFile(ixfileHandle);
     assert(rc == success && "indexManager::closeFile() should not fail.");
 
     return success;
+
 }
 
 RC test_leafRootSplitVarchar() {
@@ -575,7 +623,7 @@ RC test_leafRootSplitVarchar() {
 
     // insert entry
     //230
-    for(int i=0;i<350;i++) {
+    for(int i=0;i<200;i++) {
         rid.pageNum = i;
         rid.slotNum = i+1;
         rc = indexManager->insertEntry(ixfileHandle, attrName, key, rid);
@@ -640,98 +688,100 @@ int main()
 //    main1();
 //    return 0;
     // Global Initialization
-    const string indexFileName = "age_idx";
-
-    remove(indexFileName.c_str());
-    remove("root_nodes");
-
-    indexManager = IndexManager::instance();
-
-    Attribute attrAge;
-    attrAge.length = 4;
-    attrAge.name = "age";
-    attrAge.type = TypeInt;
-    RC result = 0;
-
-
-    result = testCase_1(indexFileName);
-    if (result == success) {
-        cerr << "***** IX Test Case 1 finished. The result will be examined. *****" << endl;
-    } else {
-        cerr << "***** [FAIL] IX Test Case 1 failed. *****" << endl;
-        return fail;
-    }
-    result = testCase_2(indexFileName, attrAge);
+//    const string indexFileName = "age_idx";
+//
 //    remove(indexFileName.c_str());
 //    remove("root_nodes");
-    if (result == success) {
-        cerr << "***** IX Test Case 2 finished. The result will be examined. *****" << endl;
-//        return success;
-    } else {
-        cerr << "***** [FAIL] IX Test Case 2 failed. *****" << endl;
+//
+//    indexManager = IndexManager::instance();
+//
+//    Attribute attrAge;
+//    attrAge.length = 4;
+//    attrAge.name = "age";
+//    attrAge.type = TypeInt;
+//    RC result = 0;
+//
+//
+//    result = testCase_1(indexFileName);
+//    if (result == success) {
+//        cerr << "***** IX Test Case 1 finished. The result will be examined. *****" << endl;
+//    } else {
+//        cerr << "***** [FAIL] IX Test Case 1 failed. *****" << endl;
 //        return fail;
-    }
-
-
-    cout << "\n\nNow testing float insertion" << endl;
-
-    const string indexFileNameFloat = "height_idx";
-    remove(indexFileNameFloat.c_str());
-    Attribute attrHeight;
-    attrHeight.length = 4;
-    attrHeight.type = TypeReal;
-    attrHeight.name = "height";
-
-    result = testCase_1(indexFileNameFloat);
-    if (result == success) {
-        cerr << "***** IX Test Case 1 for float finished. The result will be examined. *****" << endl;
-    } else {
-        cerr << "***** [FAIL] IX Test Case 1 for float failed. *****" << endl;
-        return fail;
-    }
-
-    result = testFloatInsertion(indexFileNameFloat, attrHeight);
-    if (result == success) {
-        cerr << "***** IX Test Case 2 for float finished. The result will be examined. *****" << endl;
-//        return success;
-    } else {
-        cerr << "***** [FAIL] IX Test Case 2 for float failed. *****" << endl;
+//    }
+//    result = testCase_2(indexFileName, attrAge);
+////    remove(indexFileName.c_str());
+////    remove("root_nodes");
+//    if (result == success) {
+//        cerr << "***** IX Test Case 2 finished. The result will be examined. *****" << endl;
+////        return success;
+//    } else {
+//        cerr << "***** [FAIL] IX Test Case 2 failed. *****" << endl;
+////        return fail;
+//    }
+//
+//
+//    cout << "\n\nNow testing float insertion" << endl;
+//
+//    const string indexFileNameFloat = "height_idx";
+//    remove(indexFileNameFloat.c_str());
+//    Attribute attrHeight;
+//    attrHeight.length = 4;
+//    attrHeight.type = TypeReal;
+//    attrHeight.name = "height";
+//
+//    result = testCase_1(indexFileNameFloat);
+//    if (result == success) {
+//        cerr << "***** IX Test Case 1 for float finished. The result will be examined. *****" << endl;
+//    } else {
+//        cerr << "***** [FAIL] IX Test Case 1 for float failed. *****" << endl;
 //        return fail;
-    }
-
-    cout << "\n\nNow testing varchar insertion" << endl;
-
-    const string indexFileNameVarChar = "name_idx";
-    remove(indexFileNameVarChar.c_str());
-    Attribute attrName;
-    attrName.type = TypeVarChar;
-    attrName.length = 30;
-    attrName.name = "name";
-
-    result = testCase_1(indexFileNameVarChar);
-    if (result == success) {
-        cerr << "***** IX Test Case 1 for varchar finished. The result will be examined. *****" << endl;
-    } else {
-        cerr << "***** [FAIL] IX Test Case 1 for varchar failed. *****" << endl;
-        return fail;
-    }
-
-    result = testVarcharInsertion(indexFileNameVarChar, attrName);
-    if (result == success) {
-        cerr << "***** IX Test Case 2 for varchar finished. The result will be examined. *****" << endl;
-//        return success;
-    } else {
-        cerr << "***** [FAIL] IX Test Case 2 for varchar failed. *****" << endl;
+//    }
+//
+//    result = testFloatInsertion(indexFileNameFloat, attrHeight);
+//    if (result == success) {
+//        cerr << "***** IX Test Case 2 for float finished. The result will be examined. *****" << endl;
+////        return success;
+//    } else {
+//        cerr << "***** [FAIL] IX Test Case 2 for float failed. *****" << endl;
+////        return fail;
+//    }
+//
+//    cout << "\n\nNow testing varchar insertion" << endl;
+//
+//    const string indexFileNameVarChar = "name_idx";
+//    remove(indexFileNameVarChar.c_str());
+//    Attribute attrName;
+//    attrName.type = TypeVarChar;
+//    attrName.length = 30;
+//    attrName.name = "name";
+//
+//    result = testCase_1(indexFileNameVarChar);
+//    if (result == success) {
+//        cerr << "***** IX Test Case 1 for varchar finished. The result will be examined. *****" << endl;
+//    } else {
+//        cerr << "***** [FAIL] IX Test Case 1 for varchar failed. *****" << endl;
 //        return fail;
-    }
-    remove(indexFileName.c_str());
-    remove(indexFileNameFloat.c_str());
-    remove(indexFileNameVarChar.c_str());
-    remove("root_nodes");
-    indexManager->indexRootNodeMap.clear();
+//    }
+//
+//    result = testVarcharInsertion(indexFileNameVarChar, attrName);
+//    if (result == success) {
+//        cerr << "***** IX Test Case 2 for varchar finished. The result will be examined. *****" << endl;
+////        return success;
+//    } else {
+//        cerr << "***** [FAIL] IX Test Case 2 for varchar failed. *****" << endl;
+////        return fail;
+//    }
+//    remove(indexFileName.c_str());
+//    remove(indexFileNameFloat.c_str());
+//    remove(indexFileNameVarChar.c_str());
+//    remove("root_nodes");
+//    indexManager->indexRootNodeMap.clear();
 
     test_leafRootSplitFloat();
-    test_leafRootSplitVarchar();
+//    test_leafRootSplitVarchar();
+
+
     return 0;
 
 }
