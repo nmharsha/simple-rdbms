@@ -80,7 +80,7 @@ public:
 
     RC persistIndexRootNodeMap();
 
-    void printBTreeRecursively(IXFileHandle &ixfileHandle, const Attribute &attribute, int pageNum) const;
+    void printBTreeRecursively(IXFileHandle &ixfileHandle, const Attribute &attribute, int pageNum, int depth) const;
 
     RC setFreeSpace(void *pageData, unsigned short freeSpace);
 

@@ -1,8 +1,17 @@
 
 #include "ix.h"
-#include "../rbf/rbfm.h"
-#include <map>
+
+#include <stdlib.h>
+#include <sys/_types/_size_t.h>
+#include <sys/stat.h>
+#include <__tuple>
+#include <cstring>
+#include <iostream>
 #include <stack>
+#include <tuple>
+#include <utility>
+
+#include "../rbf/pfm.h"
 
 IndexManager* IndexManager::_index_manager = 0;
 
@@ -667,13 +676,19 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 
 
 
-void IndexManager::printBTreeRecursively(IXFileHandle &ixfileHandle, const Attribute &attribute, int pageNum) const {
+void IndexManager::printBTreeRecursively(IXFileHandle &ixfileHandle, const Attribute &attribute, int pageNum, int depth) const {
     int result;
     void* pageData = calloc(PAGE_SIZE, 1);
     result = ixfileHandle.readPage(pageNum, pageData);
     int pageType = *(unsigned short*)((char*)pageData + PAGE_SIZE - PAGE_TYPE_OFFSET);
+
     if(pageType == LEAF) {
-        cout << "{\"keys\":[";
+        int d = 0;
+        while(d < depth){
+        		cout << "\t";
+        		d++;
+        }
+    		cout << "{\"keys\":[";
         int freeSpace = *(unsigned short*)((char*)pageData + PAGE_SIZE - FREE_SPACE_OFFSET);
         int endIndex = PAGE_SIZE - PAGE_TYPE_OFFSET - freeSpace;
         int offset = 0;
@@ -737,10 +752,87 @@ void IndexManager::printBTreeRecursively(IXFileHandle &ixfileHandle, const Attri
                 cout << "[ERROR]Invalid attribute type in index" << endl;
                 break;
         }
-        cout<<"]}"<<endl;
+        cout<<"]}";
 
     } else {
         //TODO: in case of non leaf
+		int d = 0;
+		while(d < depth){
+			cout << "\t";
+			d++;
+		}
+    		cout << "{" << endl;
+    		d = 0;
+		while(d < depth){
+			cout << "\t";
+			d++;
+		}
+    		cout << "\"keys\"" << ":[";
+    		int offset = 0;
+		int freeSpace = *(unsigned short*)((char*)pageData + PAGE_SIZE - FREE_SPACE_OFFSET);
+		int endIndex = PAGE_SIZE - PAGE_TYPE_OFFSET - freeSpace;
+		vector<unsigned int> pages;
+		int toggle = 0;
+		while(offset < endIndex){
+			if(toggle == 0) {
+				void* page = calloc(4, 1);
+				memcpy(page, (char*)pageData + offset, sizeof(unsigned int));
+				pages.push_back(*(unsigned int *) page);
+				offset += 4;
+				toggle = 1;
+			} else {
+				if(attribute.type == TypeInt) {
+					void *key = calloc(4, 1);
+					memcpy(key, (char*)pageData + offset, sizeof(int));
+					if(offset != 4) {
+						cout << ",";
+					}
+					cout <<"\"" << *(int *) key << "\"";
+					offset += 4;
+				} else if(attribute.type == TypeReal) {
+					void *key = calloc(4, 1);
+					memcpy(key, (char*)pageData + offset, sizeof(float));
+					if(offset != 4) {
+						cout << ",";
+					}
+					cout <<"\"" << *(float *) key << "\"";
+					offset += 4;
+				} else if(attribute.type == TypeVarChar) {
+					void *length = calloc(2, 1);
+					memcpy(length, (char*)pageData + offset, sizeof(unsigned short));
+					offset += sizeof(unsigned short);
+					void *key = calloc(sizeof(*(int*) length), 1);
+					memcpy(key, (char*)pageData + offset, *(int *) length);
+					cout <<"\"" << (char *) key << "\"";
+					offset += *(unsigned short *) length;
+				}
+				toggle = 0;
+			}
+		}
+		cout << "]," << endl;
+		d = 0;
+		while(d < depth){
+			cout << "\t";
+			d++;
+		}
+		cout << "\"children\"" << ": [" << endl;
+
+		int count = 0;
+		while(count < pages.size()) {
+			if(count != 0) {
+				cout << "," << endl;
+			}
+			printBTreeRecursively(ixfileHandle, attribute, pages[count], depth + 1);
+//			cout << endl;
+			count++;
+		}
+		d = 0;
+		while(d < depth){
+			cout << "\t";
+			d++;
+		}
+		cout << endl;
+		cout << "]" << endl << "}" << endl;
         cout << "Printing stuck here!" << endl;
     }
 }
@@ -748,7 +840,8 @@ void IndexManager::printBTreeRecursively(IXFileHandle &ixfileHandle, const Attri
 void IndexManager::printBtree(IXFileHandle &ixfileHandle, const Attribute &attribute) const {
     string s = ixfileHandle.fileName;
     int rootPageNum = indexRootNodeMap.at(s);
-    printBTreeRecursively(ixfileHandle, attribute, rootPageNum);
+    int depth = 0;
+    printBTreeRecursively(ixfileHandle, attribute, rootPageNum, depth);
 }
 
 IX_ScanIterator::IX_ScanIterator()
@@ -815,9 +908,12 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
 	ix_ScanIterator.scanOffset = offset;
 	if(key >= low) {
 		if(key == low && !lowKeyInclusive) {
-			offset += 12;
+			while(key == low){
+				offset += 12;
+				key = getRealValueAtOffset(pageData, offset);
+			}
 			ix_ScanIterator.scanOffset = offset;
-			key = getRealValueAtOffset(pageData, offset);
+//			key = getRealValueAtOffset(pageData, offset);
 			if(offset >= lastOffset) {
 				ix_ScanIterator.end = true;
 				//no need of this, can just mention something otherwise
@@ -906,6 +1002,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 	}
 	void* pageData = calloc(PAGE_SIZE, 1);
 
+	//TODO: Take care of duplicate values for highkeyinclusive
 	if(attribute.type == TypeInt) {
 		ixfileHandle->readPage(leafPageNum, pageData);
 		int rawKey = getIntValueAtOffset(pageData, scanOffset);
