@@ -271,7 +271,7 @@ RC IndexManager::persistIndexRootNodeMap() {
 
 RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribute &attribute, void* entry, int entryLen, const void *key, const RID &rid, int &location) {
     //This page is full: implicit assumption since the function is called
-    cout << "Splitting leaf node: " << rid.pageNum << " " << rid.slotNum << endl;
+//    cout << "Splitting leaf node: " << rid.pageNum << " " << rid.slotNum << endl;
 
     switch(attribute.type) {
         case TypeInt: {
@@ -1572,60 +1572,6 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
 		cout << "\n";
 	}
 
-/*
-	int low =  *(int *) ix_ScanIterator.lowKey;
-	cout << "Low: " << low << endl;
-
-	int bytesToRead;
-	if(attribute.type == TypeInt || attribute.type == TypeReal){
-		cout << "Its favorable type" << endl;
-		bytesToRead = 4;
-	}
-
-
-	// Scan through the leaf to find the first one
-	int offset = 0;
-	int lastOffset = getEndOfRecordOffsetFromPage(ix_ScanIterator.scanPageData);
-	cout << "Last off set: " << lastOffset << endl;
-	// THIS IS FOR INT
-	int key = getIntValueAtOffset(ix_ScanIterator.scanPageData, offset);
-//	float low2 = *(float *) ix_ScanIterator.lowKey;
-	cout << "Low2: " << low << endl;
-	cout << "First key: " << key << endl;
-
-	while(offset < lastOffset && key < low){
-		offset += 12;
-		key = getIntValueAtOffset(ix_ScanIterator.scanPageData, offset);
-	}
-	cout << "\n";
-	cout << "After while loop.." << endl;
-	cout << "Offset:" << offset << endl;
-	cout << "key: " << key << endl;
-	cout << "\n";
-	if(offset == lastOffset) {
-		// Not found
-	}
-	ix_ScanIterator.scanOffset = offset;
-	if(key >= low) {
-		if(key == low && !lowKeyInclusive) {
-			while(key == low){
-				offset += 12;
-				key = getIntValueAtOffset(ix_ScanIterator.scanPageData, offset);
-			}
-			ix_ScanIterator.scanOffset = offset;
-//			key = getRealValueAtOffset(pageData, offset);
-			if(offset >= lastOffset) {
-				ix_ScanIterator.end = true;
-				//no need of this, can just mention something otherwise
-			}
-		}
-	}
-	cout << endl;
-	cout << "Finally: " << endl;
-	cout << "Offset:" << offset << endl;
-	cout << "key: " << key << endl;
-	cout << "\n";
-*/
 
 	return 0;
 }
@@ -1658,6 +1604,7 @@ int IndexManager::findLeaf(IXFileHandle &ixfileHandle, void* pageData, PageNum c
 			}
 			if(found) {
 				PageNum nextPageNum = getIntValueAtOffset(pageData, offset);
+				cout << "Going to next page: " << nextPageNum << endl;
 				ixfileHandle.readPage(nextPageNum, pageData);
 				return findLeaf(ixfileHandle, pageData, nextPageNum, attribute, lowKey);
 			}
@@ -1696,10 +1643,12 @@ int IndexManager::findLeaf(IXFileHandle &ixfileHandle, void* pageData, PageNum c
 		//TODO: Varchar
 	}
 	if(offset >= getEndOfRecordOffsetFromPage(pageData)) {
+		cout << "last key reached" << endl;
 		PageNum nextPageNum = getIntValueAtOffset(pageData, offset - 4);
 		ixfileHandle.readPage(nextPageNum, pageData);
 		return findLeaf(ixfileHandle, pageData, nextPageNum, attribute, lowKey);
 	}
+	cout << "Hard luck" << endl;
 	return -1;
 }
 
@@ -1725,8 +1674,10 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 		cout << "Raw key INT: " << rawKey << endl;
 		if(highKey != NULL) {
 			if(rawKey <= *(int*) highKey) {
+				cout << "Its low, int key" << endl;
 				if(rawKey == *(int *)highKey && highKeyInclusive){
-					end = true;
+//					cout << "setting end true" << endl;
+//					end = true;
 				} else if(rawKey == *(int *)highKey && !highKeyInclusive) {
 					return IX_EOF;
 				}
@@ -1752,7 +1703,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 			if(rawKey <= *(float *) highKey) {
 				cout << "raw key is less" << endl;
 				if(rawKey == *(float *)highKey && highKeyInclusive){
-					end = true;
+//					end = true;
 				} else if(rawKey == *(float *)highKey && !highKeyInclusive) {
 					end = true;
 					cout << "stopping 1" << endl;
@@ -1789,6 +1740,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 		}
 	}
     cout << "Success" << endl;
+    cout << "Scan offset for next call: " << scanOffset << endl;
     return 0;
 }
 
