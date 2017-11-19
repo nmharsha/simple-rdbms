@@ -671,6 +671,85 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 
 RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
 {
+	PageNum root = indexRootNodeMap[ixfileHandle.fileName];
+	int bytesToRead;
+	if(attribute.type == TypeInt || attribute.type == TypeReal){
+		cout << "Its favorable type" << endl;
+		bytesToRead = 4;
+	}
+	void* pageData = calloc(PAGE_SIZE, 1);
+	ixfileHandle.readPage(root, pageData);
+	cout << "read the page" << endl;
+	int leafPage = findLeaf(ixfileHandle, pageData, root, attribute, key);
+	if(leafPage == -1) {
+		// doesnt exist, return something or fill up the data members of ixscan
+	}
+	int lastOffset = getEndOfRecordOffsetFromPage(pageData);
+	bool foundKey = false;
+	bool foundRID = false;
+	int offset = 0;
+	int start = 0;
+	int entryLen = 0;
+	while(offset < lastOffset && !foundKey && !foundRID){
+		if(attribute.type == TypeInt) {
+			if(*(int *) key == getIntValueAtOffset(pageData, offset)){
+				foundKey = true;
+			}
+			offset += 4;
+		} else if(attribute.type == TypeReal) {
+			if(*(float *) key == getRealValueAtOffset(pageData, offset)){
+				foundKey = true;
+			}
+			offset += 4;
+		} else if(attribute.type == TypeVarChar) {
+			void* len = calloc(4, 1);
+			memcpy(len, (char*) key, 4);
+			int keyLen = *(int *) len;
+			void* currKeyLen = calloc(2, 1);
+			memcpy(currKeyLen, (char*) pageData + offset, 2);
+			int length = *(unsigned short *) currKeyLen; //getIntValueAtOffset(pageData, offset); // do short
+			offset += 2;
+			if(keyLen == length) {
+				void* currKey = calloc(length, 1);
+				memcpy(currKey, (char*) pageData + offset, length);
+				string currKeyStr((char*) currKey, length);
+				void* keyStrPtr = calloc(length, 1);
+				memcpy(keyStrPtr, (char*) key + 4, length);
+
+				string keyStr((char*) keyStrPtr, length);
+				if(currKeyStr.compare(keyStr) == 0) {
+					foundKey = true;
+				}
+			}
+			offset += length;
+		}
+
+		if(foundKey) {
+			int page = getIntValueAtOffset(pageData, offset);
+			int slot = getIntValueAtOffset(pageData, offset + 4);
+			if(page == rid.pageNum && slot == rid.slotNum) {
+				foundRID = true;
+			} else {
+				foundKey = false;
+				foundRID = false;
+			}
+		}
+		offset += 8;
+		entryLen = offset - start;
+		start = offset;
+	}
+
+	if(foundKey && foundRID) {
+		start -= entryLen;
+		int toCopy = getEndOfRecordOffsetFromPage(pageData) - offset;
+		memmove((char*) pageData + start, (char *)pageData + offset, toCopy);
+		unsigned short freeSpace = getFreeSpaceFromPage(pageData);
+		freeSpace += entryLen;
+		setFreeSpace(pageData, freeSpace);
+		ixfileHandle.writePage(leafPage, pageData);
+		return 0;
+	}
+
     return -1;
 }
 
@@ -842,6 +921,7 @@ void IndexManager::printBtree(IXFileHandle &ixfileHandle, const Attribute &attri
     int rootPageNum = indexRootNodeMap.at(s);
     int depth = 0;
     printBTreeRecursively(ixfileHandle, attribute, rootPageNum, depth);
+    cout << endl;
 }
 
 IX_ScanIterator::IX_ScanIterator()
@@ -876,9 +956,11 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
 	}
 	void* pageData = calloc(PAGE_SIZE, 1);
 	ixfileHandle.readPage(root, pageData);
+	cout << "root page: " << root << endl;
 	cout << "read the page" << endl;
 	int leafPage = findLeaf(ixfileHandle, pageData, root, attribute, lowKey);
 	if(leafPage == -1) {
+		cout << "weirdddd" << endl;
 		// doesnt exist, return something or fill up the data members of ixscan
 	}
 	ix_ScanIterator.leafPageNum = leafPage;
@@ -932,7 +1014,7 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
 int IndexManager::findLeaf(IXFileHandle &ixfileHandle, void* pageData, PageNum currPageNum, const Attribute &attribute, const void* lowKey){
 	cout << "In find leaf" << endl;
 	if(getPageTypeFromPage(pageData) == LEAF){
-		cout << "returning" << endl;
+		cout << "returning: " << currPageNum << endl;
 		return currPageNum;
 	}
 	int offset = 4;
@@ -946,15 +1028,18 @@ int IndexManager::findLeaf(IXFileHandle &ixfileHandle, void* pageData, PageNum c
 				found = true;
 			} else if(low < key) {
 				offset -= 4;
+				found = true;
 			}
 			if(found) {
 				PageNum nextPageNum = getIntValueAtOffset(pageData, offset);
 				ixfileHandle.readPage(nextPageNum, pageData);
-				findLeaf(ixfileHandle, pageData, nextPageNum, attribute, lowKey);
+				return findLeaf(ixfileHandle, pageData, nextPageNum, attribute, lowKey);
 			}
 			offset += 8;
 		} else if(attribute.type == TypeReal) {
-			float key = getIntValueAtOffset(pageData, offset);
+			cout << "in real , cur pn: " << currPageNum << endl;
+			float key = getRealValueAtOffset(pageData, offset);
+			cout << "key here: " <<  key << endl;
 			float low = *(float *) lowKey;
 			bool found = false;
 			if(key == low) {
@@ -962,17 +1047,23 @@ int IndexManager::findLeaf(IXFileHandle &ixfileHandle, void* pageData, PageNum c
 				found = true;
 			} else if(low < key) {
 				offset -= 4;
+				found = true;
 			}
 			if(found) {
 				PageNum nextPageNum = getIntValueAtOffset(pageData, offset);
 				ixfileHandle.readPage(nextPageNum, pageData);
-				findLeaf(ixfileHandle, pageData, nextPageNum, attribute, lowKey);
+				return findLeaf(ixfileHandle, pageData, nextPageNum, attribute, lowKey);
 			}
 			offset += 8;
+			cout << "after 8+ offset: " << offset << endl;
 		}
-		//TODO: Real and Varchar
+		//TODO: Varchar
 	}
-
+	if(offset >= getEndOfRecordOffsetFromPage(pageData)) {
+		PageNum nextPageNum = getIntValueAtOffset(pageData, offset - 4);
+		ixfileHandle.readPage(nextPageNum, pageData);
+		return findLeaf(ixfileHandle, pageData, nextPageNum, attribute, lowKey);
+	}
 	return -1;
 }
 
@@ -1053,8 +1144,9 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 
 	}
 
-	if(scanOffset == indexManager->getEndOfRecordOffsetFromPage(pageData)) {
-		leafPageNum = getIntValueAtOffset(pageData, scanOffset);
+	if(scanOffset >= indexManager->getEndOfRecordOffsetFromPage(pageData)) {
+		// read the PAGE_SIZE - 6
+		leafPageNum = getIntValueAtOffset(pageData, PAGE_SIZE - 8);
 		scanOffset = 0;
 	}
 
