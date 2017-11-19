@@ -1089,7 +1089,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
         PageNum nextPage = -1;
         memcpy((unsigned short*)((char*)firstPageData+PAGE_SIZE-PAGE_TYPE_OFFSET), &pageType, sizeof(unsigned short));
         memcpy((unsigned short*)((char*)firstPageData+PAGE_SIZE-FREE_SPACE_OFFSET), &freeSpace, sizeof(unsigned short));
-        memcpy((PageNum*)((char*)firstPageData+PAGE_SIZE-NEXT_PAGE_OFFSET), &freeSpace, sizeof(PageNum));
+        memcpy((PageNum*)((char*)firstPageData+PAGE_SIZE-NEXT_PAGE_OFFSET), &nextPage, sizeof(PageNum));
         result = ixfileHandle.appendPage(firstPageData);
         free(firstPageData);
         int pageNumAdded = ixfileHandle.getPersistedAppendCounter() - 1;
@@ -1395,6 +1395,9 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
                       IX_ScanIterator &ix_ScanIterator)
 {
 	cout << "Inside Scan..." << endl;
+	if(!fileExists(ixfileHandle.fileName)){
+		return -1;
+	}
 	ix_ScanIterator.end = false;
 	ix_ScanIterator.ixfileHandle = &ixfileHandle;
 	ix_ScanIterator.attribute = attribute;
@@ -1683,12 +1686,14 @@ int IndexManager::findLeaf(IXFileHandle &ixfileHandle, void* pageData, PageNum c
 RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 {
 	cout << "In get next entry..." << endl;
+	cout << "Current leaf page: " << leafPageNum << endl;
+	cout << "next Pointer of current page: " << indexManager->getIntValueAtOffset(scanPageData, PAGE_SIZE - 8) << endl;
 	if(end) {
 		// done, call close?
         cout << "ending" << endl;
 		return IX_EOF;
 	}
-	void* pageData = calloc(PAGE_SIZE, 1);
+//	void* pageData = calloc(PAGE_SIZE, 1);
 
 	//TODO: Take care of duplicate values for highkeyinclusive
 	if(attribute.type == TypeInt) {
@@ -1749,9 +1754,9 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 	if(scanOffset >= indexManager->getEndOfRecordOffsetFromPage(scanPageData)) {
 		// read the PAGE_SIZE - 6
 //		cout << "ScanOffset reached its bound: " << scanOffset << endl;
-		leafPageNum = getIntValueAtOffset(pageData, PAGE_SIZE - 8);
+		leafPageNum = getIntValueAtOffset(scanPageData, PAGE_SIZE - 8);
 		cout << "leafpage: " << leafPageNum << endl;
-		if(leafPageNum != -1){
+		if((int)leafPageNum != -1){
 			ixfileHandle->readPage(leafPageNum, scanPageData);
 			scanOffset = 0;
 		} else {
@@ -1784,7 +1789,10 @@ float IX_ScanIterator::getRealValueAtOffset(void *pageRecord, int offset) {
 
 RC IX_ScanIterator::close()
 {
-    return -1;
+	free(lowKey);
+	free(highKey);
+	free(scanPageData);
+    return 0;
 }
 
 

@@ -139,7 +139,6 @@ public:
     bool highKeyInclusive;
     IndexManager* indexManager;
 
-    void* latestKey;
     int scanOffset;
     PageNum leafPageNum;
     bool end;
