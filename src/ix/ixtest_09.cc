@@ -45,7 +45,7 @@ int testCase_9(const string &indexFileName, const Attribute &attribute) {
         key = (float) i + 87.6;
         rid.pageNum = i;
         rid.slotNum = i;
-
+//        cout << "Currently in tuple: " << i << endl;
         rc = indexManager->insertEntry(ixfileHandle, attribute, &key, rid);
         assert(rc == success && "indexManager::insertEntry() should not fail.");
 
@@ -59,7 +59,7 @@ int testCase_9(const string &indexFileName, const Attribute &attribute) {
         key = (float) i + 87.6;
         rid.pageNum = i;
         rid.slotNum = i - (unsigned) 500;
-
+        cout << "Currently in tuple: " << i << endl;
         rc = indexManager->insertEntry(ixfileHandle, attribute, &key, rid);
         assert(rc == success && "indexManager::insertEntry() should not fail.");
 

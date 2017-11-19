@@ -59,7 +59,7 @@ int testCase_8(const string &indexFileName, const Attribute &attribute)
         rid.slotNum = key * 3;
 
         rc = indexManager->insertEntry(ixfileHandle, attribute, &key, rid);
-        assert(rc == success && "indexManager::insertEntry() should not fail.");
+        assert(rc == success && "indexManager::insertEntry() 2 should not fail.");
 
         inRidSlotNumSum += rid.slotNum;
     }
