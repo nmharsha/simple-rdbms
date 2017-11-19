@@ -1664,20 +1664,26 @@ int IndexManager::findLeaf(IXFileHandle &ixfileHandle, void* pageData, PageNum c
 			offset += 8;
 		} else if(attribute.type == TypeReal) {
 			cout << "in real , cur pn: " << currPageNum << endl;
-			float key = getRealValueAtOffset(pageData, offset);
-			cout << "key here: " <<  key << endl;
-			float low = *(float *) lowKey;
 			bool found = false;
-			if(key == low) {
-				cout << "key == low" << endl;
-				offset += 4;
+			if(lowKey == NULL) {
 				found = true;
-			} else if(low < key) {
-				cout << "low, key: ";
-				cout << low << "," << key << endl;
-				cout << "low < key" << endl;
-				offset -= 4;
-				found = true;
+				offset = 0;
+			} else {
+				float key = getRealValueAtOffset(pageData, offset);
+				cout << "key here: " <<  key << endl;
+				float low = *(float *) lowKey;
+
+				if(key == low) {
+					cout << "key == low" << endl;
+					offset += 4;
+					found = true;
+				} else if(low < key) {
+					cout << "low, key: ";
+					cout << low << "," << key << endl;
+					cout << "low < key" << endl;
+					offset -= 4;
+					found = true;
+				}
 			}
 			if(found) {
 				PageNum nextPageNum = getIntValueAtOffset(pageData, offset);
