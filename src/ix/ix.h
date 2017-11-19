@@ -11,7 +11,7 @@
 
 #define FREE_SPACE_OFFSET 2
 #define PAGE_TYPE_OFFSET 4
-#define NUM_OF_ENTRIES_OFFSET 6
+#define NEXT_PAGE_OFFSET 8
 
 class IX_ScanIterator;
 class IXFileHandle;
@@ -22,7 +22,7 @@ public:
     static IndexManager* instance();
     PagedFileManager* pagedFileManager;
     int rootNodePageNum;
-    map<string, int> indexRootNodeMap;
+    map<string, PageNum> indexRootNodeMap;
 
 
     // Create an index file.
@@ -63,9 +63,9 @@ private:
     static IndexManager *_index_manager;
 
     RC insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum, const Attribute &attribute, const void *key, const RID &rid,
-                      PageNum &newChildPageNum);
+                      PageNum &newChildPageNum, void* splitKey);
 
-    unsigned short getFreeSpaceFromPage(void *pageData);
+    unsigned short getFreeSpaceFromPage(void *pageData) const;
 
     int getPageTypeFromPage(void *pageData);
 
@@ -86,9 +86,19 @@ private:
 
     RC setPageType(void *pageData, unsigned short pageType);
 
-    RC getRightInsertPage(void *pageData, const Attribute &attribute, const void *key);
+    PageNum getRightInsertPage(void *pageData, const Attribute &attribute, const void *key);
 
     int getEndOfRecordOffsetFromPage(void *pageData);
+
+    RC squeezeEntryIntoNonLeaf(void *pageData, const Attribute &attribute, const void *key, const PageNum pointerPageNum);
+
+    RC splitNonLeafNode(void *pageData, void *newPageData, const void* key, const Attribute &attribute, const PageNum pointerPageNum, int &location);
+
+    PageNum getNextSiblingPage(void *pageData);
+
+    PageNum getNextSiblingPage(void *pageData);
+
+    RC setNextSiblingPage(void *pageData, PageNum pageNum);
 };
 
 typedef enum {

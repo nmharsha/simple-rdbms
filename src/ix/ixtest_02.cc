@@ -11,6 +11,41 @@
 
 IndexManager *indexManager;
 
+RC testCase_1(const string &indexFileName)
+{
+    // Functions tested
+    // 1. Create Index File **
+    // 2. Open Index File **
+    // 3. Create Index File -- when index file is already created **
+    // 4. Open Index File ** -- when a file handle is already opened **
+    // 5. Close Index File **
+    // NOTE: "**" signifies the new functions being tested in this test case.
+    cerr << endl << "***** In IX Test Case 1 *****" << endl;
+
+    // create index file
+    RC rc = indexManager->createFile(indexFileName);
+    assert(rc == success && "indexManager::createFile() should not fail.");
+
+    // open index file
+    IXFileHandle ixfileHandle;
+    rc = indexManager->openFile(indexFileName, ixfileHandle);
+    assert(rc == success && "indexManager::openFile() should not fail.");
+
+    // create duplicate index file
+    rc = indexManager->createFile(indexFileName);
+    assert(rc != success && "Calling indexManager::createFile() on an existing file should fail.");
+
+    // open index file again using the file handle that is already opened.
+    rc = indexManager->openFile(indexFileName, ixfileHandle);
+    assert(rc != success && "Calling indexManager::openFile() using an already opened file handle should fail.");
+
+    // close index file
+    rc = indexManager->closeFile(ixfileHandle);
+    assert(rc == success && "indexManager::closeFile() should not fail.");
+
+    return success;
+}
+
 int testCase_basicSplit(const string &indexFileName, const Attribute &attribute)
 {
     // Functions tested
@@ -188,68 +223,38 @@ int testCase_2(const string &indexFileName, const Attribute &attribute)
     return success;
 }
 
-struct {
-    int a;
-    char c;
-    int b;
-} test;
+RC test_basicIntInsertion() {
+        const string indexFileName = "age_idx";
+
+    remove(indexFileName.c_str());
+    remove("root_nodes");
+
+    indexManager = IndexManager::instance();
+
+    Attribute attrAge;
+    attrAge.length = 4;
+    attrAge.name = "age";
+    attrAge.type = TypeInt;
+    RC result = 0;
 
 
-void main1() {
-    fstream f;
-    map<string, int> m;
-    m["abcd"] = 1;
-    f.open("test_case", ios_base::out);
-    f<<m.size()<<endl;
-    map<string, int>::iterator it;
-    for(it = m.begin(); it != m.end(); it++) {
-        f<<it->first<<" "<<it->second<<endl;
+    result = testCase_1(indexFileName.c_str());
+    if (result == success) {
+        cerr << "***** IX Test Case 1 finished. The result will be examined. *****" << endl;
+    } else {
+        cerr << "***** [FAIL] IX Test Case 1 failed. *****" << endl;
+        return fail;
     }
-    f.close();
-    f.open("test_case", ios_base::in);
-    int numOfPairs;
-    f>>numOfPairs;
-    cout<<numOfPairs;
+    result = testCase_2(indexFileName, attrAge);
+    if (result == success) {
+        cerr << "***** IX Test Case 2 finished. The result will be examined. *****" << endl;
+    } else {
+        cerr << "***** [FAIL] IX Test Case 2 failed. *****" << endl;
+    }
+    return 0;
 }
 
-RC testCase_1(const string &indexFileName)
-{
-    // Functions tested
-    // 1. Create Index File **
-    // 2. Open Index File **
-    // 3. Create Index File -- when index file is already created **
-    // 4. Open Index File ** -- when a file handle is already opened **
-    // 5. Close Index File **
-    // NOTE: "**" signifies the new functions being tested in this test case.
-    cerr << endl << "***** In IX Test Case 1 *****" << endl;
-
-    // create index file
-    RC rc = indexManager->createFile(indexFileName);
-    assert(rc == success && "indexManager::createFile() should not fail.");
-
-    // open index file
-    IXFileHandle ixfileHandle;
-    rc = indexManager->openFile(indexFileName, ixfileHandle);
-    assert(rc == success && "indexManager::openFile() should not fail.");
-
-    // create duplicate index file
-    rc = indexManager->createFile(indexFileName);
-    assert(rc != success && "Calling indexManager::createFile() on an existing file should fail.");
-
-    // open index file again using the file handle that is already opened.
-    rc = indexManager->openFile(indexFileName, ixfileHandle);
-    assert(rc != success && "Calling indexManager::openFile() using an already opened file handle should fail.");
-
-    // close index file
-    rc = indexManager->closeFile(ixfileHandle);
-    assert(rc == success && "indexManager::closeFile() should not fail.");
-
-    return success;
-}
-
-//RC test_CreateFloatIndex(const string &indexFile)
-
-RC testFloatInsertion(const string &indexFileName, const Attribute &attribute) {
+RC test_basicRealInsertion(const string &indexFileName, const Attribute &attribute) {
     cerr << endl << "***** In IX Test Case 2 *****" << endl;
 
     RID rid;
@@ -473,7 +478,7 @@ RC test_leafRootSplitFloat() {
 
     cerr << endl << "Before Insert - R W A: " << readPageCount << " " <<  writePageCount << " " << appendPageCount << endl;
 
-    for(int i=0;i<350;i++) {
+    for(int i=0;i<3;i++) {
         rid.pageNum = i;
         rid.slotNum = i+1;
         key = key+1;
@@ -552,13 +557,6 @@ RC test_leafRootSplitVarchar() {
     attrName.length = 30;
     attrName.name = "name";
 
-//    cout << "Printing out map values of size for checking: " <<  indexManager->indexRootNodeMap.size() << endl;
-//
-//    for (auto iter = indexManager->indexRootNodeMap.begin(); iter != indexManager->indexRootNodeMap.end(); iter++)
-//    {
-//        cout << "Key: " << iter->first << endl << "Values: "<< iter->second << endl;
-//    }
-
     testCase_1(indexFileNameVarChar);
 
 
@@ -573,8 +571,6 @@ RC test_leafRootSplitVarchar() {
 
     cerr << endl << "Before Insert - R W A: " << readPageCount << " " <<  writePageCount << " " << appendPageCount << endl;
 
-    // insert entry
-    //230
     for(int i=0;i<350;i++) {
         rid.pageNum = i;
         rid.slotNum = i+1;
@@ -585,23 +581,6 @@ RC test_leafRootSplitVarchar() {
         cout << "So far so good"<<endl;
         assert(rc == success && "indexManager::insertEntry() should not fail.");
     }
-//    rc = indexManager->insertEntry(ixfileHandle, attrName, key, rid);
-//    assert(rc == success && "indexManager::insertEntry() should not fail.");
-//
-//    rc = indexManager->insertEntry(ixfileHandle, attrName, key2, rid2);
-//    assert(rc == success && "indexManager::insertEntry() should not fail.");
-//
-//    rid.pageNum += 100;
-//    rid.slotNum += 100;
-//
-//    rid2.pageNum += 100;
-//    rid2.slotNum += 100;
-//
-//    rc = indexManager->insertEntry(ixfileHandle, attrName, key, rid);
-//    assert(rc == success && "indexManager::insertEntry() should not fail.");
-//
-//    rc = indexManager->insertEntry(ixfileHandle, attrName, key2, rid2);
-//    assert(rc == success && "indexManager::insertEntry() should not fail.");
 
     // collect counters
     rc = ixfileHandle.collectCounterValues(readPageCountAfter, writePageCountAfter, appendPageCountAfter);
@@ -634,46 +613,9 @@ RC test_leafRootSplitVarchar() {
     return success;
 }
 
-
-int main()
-{
-//    main1();
-//    return 0;
-    // Global Initialization
-    const string indexFileName = "age_idx";
-
-    remove(indexFileName.c_str());
-    remove("root_nodes");
-
-    indexManager = IndexManager::instance();
-
-    Attribute attrAge;
-    attrAge.length = 4;
-    attrAge.name = "age";
-    attrAge.type = TypeInt;
-    RC result = 0;
-
-
-    result = testCase_1(indexFileName);
-    if (result == success) {
-        cerr << "***** IX Test Case 1 finished. The result will be examined. *****" << endl;
-    } else {
-        cerr << "***** [FAIL] IX Test Case 1 failed. *****" << endl;
-        return fail;
-    }
-    result = testCase_2(indexFileName, attrAge);
-//    remove(indexFileName.c_str());
-//    remove("root_nodes");
-    if (result == success) {
-        cerr << "***** IX Test Case 2 finished. The result will be examined. *****" << endl;
-//        return success;
-    } else {
-        cerr << "***** [FAIL] IX Test Case 2 failed. *****" << endl;
-//        return fail;
-    }
-
-
-    cout << "\n\nNow testing float insertion" << endl;
+RC test_basicRealInsertion() {
+        cout << "\n\nNow testing float insertion" << endl;
+    int result;
 
     const string indexFileNameFloat = "height_idx";
     remove(indexFileNameFloat.c_str());
@@ -681,6 +623,8 @@ int main()
     attrHeight.length = 4;
     attrHeight.type = TypeReal;
     attrHeight.name = "height";
+
+    indexManager = IndexManager::instance();
 
     result = testCase_1(indexFileNameFloat);
     if (result == success) {
@@ -690,7 +634,7 @@ int main()
         return fail;
     }
 
-    result = testFloatInsertion(indexFileNameFloat, attrHeight);
+    result = test_basicRealInsertion(indexFileNameFloat, attrHeight);
     if (result == success) {
         cerr << "***** IX Test Case 2 for float finished. The result will be examined. *****" << endl;
 //        return success;
@@ -698,15 +642,22 @@ int main()
         cerr << "***** [FAIL] IX Test Case 2 for float failed. *****" << endl;
 //        return fail;
     }
+    return 0;
+}
 
-    cout << "\n\nNow testing varchar insertion" << endl;
+RC test_basicVarCharInsertion() {
+        cout << "\n\nNow testing varchar insertion" << endl;
+    int result;
 
     const string indexFileNameVarChar = "name_idx";
     remove(indexFileNameVarChar.c_str());
+    remove("root_nodes");
     Attribute attrName;
     attrName.type = TypeVarChar;
     attrName.length = 30;
     attrName.name = "name";
+
+    indexManager = IndexManager::instance();
 
     result = testCase_1(indexFileNameVarChar);
     if (result == success) {
@@ -724,14 +675,20 @@ int main()
         cerr << "***** [FAIL] IX Test Case 2 for varchar failed. *****" << endl;
 //        return fail;
     }
-    remove(indexFileName.c_str());
-    remove(indexFileNameFloat.c_str());
-    remove(indexFileNameVarChar.c_str());
-    remove("root_nodes");
-    indexManager->indexRootNodeMap.clear();
+    return 0;
+}
 
-    test_leafRootSplitFloat();
-    test_leafRootSplitVarchar();
+
+int main()
+{
+//    main1();
+//    return 0;
+    // Global Initialization
+    test_basicIntInsertion();
+//    test_basicRealInsertion();
+//    test_basicVarCharInsertion();
+//    test_leafRootSplitFloat();
+//    test_leafRootSplitVarchar();
     return 0;
 
 }
