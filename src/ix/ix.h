@@ -85,7 +85,7 @@ public:
 
     RC setFreeSpace(void *pageData, unsigned short freeSpace);
 
-    RC splitLeafNode(void *pageData, void* newPageData, const Attribute &attribute, void* entry, int entryLen, const void *key, const RID &rid);
+    RC splitLeafNode(void *pageData, void* newPageData, const Attribute &attribute, void* entry, int entryLen, const void *key, const RID &rid, int &location);
 
     RC setPageType(void *pageData, unsigned short pageType);
 

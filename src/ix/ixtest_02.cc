@@ -171,7 +171,7 @@ int testCase_2(const string &indexFileName, const Attribute &attribute)
     rc = ixfileHandle.collectCounterValues(readPageCount, writePageCount, appendPageCount);
     assert(rc == success && "indexManager::collectCounterValues() should not fail.");
 
-    cerr << endl << "Before Insert - R W A: " << readPageCount << " " <<  writePageCount << " " << appendPageCount << endl;
+    cerr << endl << "Before Insert for simple int - R W A: " << readPageCount << " " <<  writePageCount << " " << appendPageCount << endl;
 
 //    for(int i=0;i<350;i++) {
 //        rid.pageNum = i;
@@ -193,12 +193,12 @@ int testCase_2(const string &indexFileName, const Attribute &attribute)
     rc = indexManager->insertEntry(ixfileHandle, attribute, &key, rid);
     assert(rc == success && "indexManager::insertEntry() should not fail.");
 
-    rc = indexManager->insertEntry(ixfileHandle, attribute, &key2, rid2);
-    assert(rc == success && "indexManager::insertEntry() should not fail.");
+//    rc = indexManager->insertEntry(ixfileHandle, attribute, &key2, rid2);
+//    assert(rc == success && "indexManager::insertEntry() should not fail.");
 
     // collect counters
-//    rc = ixfileHandle.collectCounterValues(readPageCountAfter, writePageCountAfter, appendPageCountAfter);
-//    assert(rc == success && "indexManager::collectCounterValues() should not fail.");
+    rc = ixfileHandle.collectCounterValues(readPageCountAfter, writePageCountAfter, appendPageCountAfter);
+    assert(rc == success && "indexManager::collectCounterValues() should not fail.");
 
     cerr << "After Insert - R W A: " << readPageCountAfter << " " <<  writePageCountAfter << " " << appendPageCountAfter << endl;
 
@@ -247,12 +247,37 @@ RC test_basicIntInsertion() {
         cerr << "***** [FAIL] IX Test Case 1 failed. *****" << endl;
         return fail;
     }
+
+    RID rid2;
+    int key2 = 250;
+    rid2.pageNum = 510;
+    rid2.slotNum = 22;
+    key2++;
+
+    IXFileHandle ixfileHandle;
+    int rc;
+
+    //don't go down
     result = testCase_2(indexFileName, attrAge);
     if (result == success) {
         cerr << "***** IX Test Case 2 finished. The result will be examined. *****" << endl;
     } else {
         cerr << "***** [FAIL] IX Test Case 2 failed. *****" << endl;
     }
+
+
+    rc = indexManager->openFile(indexFileName, ixfileHandle);
+    assert(rc == success && "indexManager::openFile() should not fail.");
+
+//    indexManager->printBtree(ixfileHandle, attrAge);
+
+    cout << "And now------\n\n";
+
+    rc = indexManager->insertEntry(ixfileHandle, attrAge, &key2, rid2);
+    assert(rc == success && "indexManager::insertEntry() custom should not fail.");
+
+    indexManager->printBtree(ixfileHandle, attrAge);
+
     return 0;
 }
 

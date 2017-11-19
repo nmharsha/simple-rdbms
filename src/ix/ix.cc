@@ -191,7 +191,7 @@ RC IndexManager::squeezeEntryIntoLeaf(void *pageData, const Attribute &attribute
                 }
                 int currentKey = *(int *) currentOffsetEntry;
                 if (*(int *) key < currentKey) {
-                    int endOfRecordsOffset = PAGE_SIZE - PAGE_TYPE_OFFSET - getFreeSpaceFromPage(pageData);
+                    int endOfRecordsOffset = getEndOfRecordOffsetFromPage(pageData);
                     int lengthToShift = endOfRecordsOffset - offset;
                     if(lengthToShift > 0)
                         memmove((char *) pageData + offset + entryLen, (char *) pageData + offset, lengthToShift);
@@ -211,7 +211,7 @@ RC IndexManager::squeezeEntryIntoLeaf(void *pageData, const Attribute &attribute
                 }
                 float currentKey = *(float *) currentOffsetEntry;
                 if (*(float *) key < currentKey) {
-                    int endOfRecordsOffset = PAGE_SIZE - PAGE_TYPE_OFFSET - getFreeSpaceFromPage(pageData);
+                    int endOfRecordsOffset = getEndOfRecordOffsetFromPage(pageData);
                     int lengthToShift = endOfRecordsOffset - offset;
                     if(lengthToShift > 0)
                         memmove((char *) pageData + offset + entryLen, (char *) pageData + offset, lengthToShift);
@@ -225,18 +225,13 @@ RC IndexManager::squeezeEntryIntoLeaf(void *pageData, const Attribute &attribute
             }
             case TypeVarChar: {
                 if(offset >= pageEndOffset) {
-                    cout << "In squeeze inserting at end " << rid.pageNum << " " << rid.slotNum << " " << *(unsigned short*)entry << " "  <<(char*)entry + 2 << " " << entryLen << " offset " << offset <<endl;
-                    if(rid.pageNum == 610) {
-//                        offset -= 1;
-                    }
                     memcpy((char *) pageData + offset, entry, entryLen);
                     setFreeSpace(pageData, getFreeSpaceFromPage(pageData) - entryLen);
                     return 0;
                 }
                 int varcharLength = *(unsigned short*) currentOffsetEntry;
-                int insertKeyLength = *(unsigned short*) entry;
                 if(strncmp((char*)entry + sizeof(unsigned short), (char*)currentOffsetEntry + sizeof(unsigned short), varcharLength) < 0) {
-                    int endOfRecordsOffset = PAGE_SIZE - PAGE_TYPE_OFFSET - getFreeSpaceFromPage(pageData);
+                    int endOfRecordsOffset = getEndOfRecordOffsetFromPage(pageData);
                     int lengthToShift = endOfRecordsOffset - offset;
                     if(lengthToShift > 0)
                         memmove((char *) pageData + offset + entryLen, (char *) pageData + offset, lengthToShift);
@@ -269,7 +264,7 @@ RC IndexManager::persistIndexRootNodeMap() {
     return 0;
 }
 
-RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribute &attribute, void* entry, int entryLen, const void *key, const RID &rid) {
+RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribute &attribute, void* entry, int entryLen, const void *key, const RID &rid, int &location) {
     //This page is full: implicit assumption since the function is called
     cout << "Splitting leaf node: " << rid.pageNum << " " << rid.slotNum << endl;
 
@@ -278,7 +273,7 @@ RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribut
             stack<pair<int, int> > entriesSoFar; //key, offset
             int offset = 0;
             int firstEntryKey = *(int*) pageData;
-            int recordsEndOffset = PAGE_SIZE - PAGE_TYPE_OFFSET - getFreeSpaceFromPage(pageData);
+            int recordsEndOffset = getEndOfRecordOffsetFromPage(pageData);
             while(offset <= PAGE_SIZE) {
                 void* currentOffsetEntry = calloc(PAGE_SIZE, 1);
                 int currentOffsetEntryLen;
@@ -308,8 +303,15 @@ RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribut
                     } else {
                         int offsetToSplit = offsetTemp + sizeof(int) + sizeof(RID);
                         int lengthToShift = recordsEndOffset - offsetToSplit;
+                        //TODO: changes exist here
+                        if(*(int*)key < *(int*)((char*)pageData + offsetToSplit)) {
+                            location = 0;
+                        } else {
+                            location = 1;
+                        }
+
                         memcpy(newPageData, (char*)pageData + offsetToSplit, lengthToShift);
-                        setFreeSpace(newPageData, PAGE_SIZE - lengthToShift - PAGE_TYPE_OFFSET);
+                        setFreeSpace(newPageData, PAGE_SIZE - lengthToShift - NEXT_PAGE_OFFSET);
                         setFreeSpace(pageData, getFreeSpaceFromPage(pageData) + lengthToShift);
                         setPageType(newPageData, LEAF);
                         memset((char*)pageData + offsetToSplit, 0, lengthToShift);
@@ -327,8 +329,13 @@ RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribut
                     if(currentKeyT != firstEntryKey) {
                         int offsetToSplit = offset;
                         int lengthToShift = recordsEndOffset - offsetToSplit;
+                        if(*(int*)key < *(int*)((char*)pageData + offsetToSplit)) {
+                            location = 0;
+                        } else {
+                            location = 1;
+                        }
                         memcpy(newPageData, (char*)pageData + offsetToSplit, lengthToShift);
-                        setFreeSpace(newPageData, PAGE_SIZE - lengthToShift - PAGE_TYPE_OFFSET);
+                        setFreeSpace(newPageData, PAGE_SIZE - lengthToShift - NEXT_PAGE_OFFSET);
                         setFreeSpace(pageData, getFreeSpaceFromPage(pageData) + lengthToShift);
                         setPageType(newPageData, LEAF);
                         memset((char*)pageData + offsetToSplit, 0, lengthToShift);
@@ -345,7 +352,7 @@ RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribut
             stack<pair<float, int> > entriesSoFar; //key, offset
             int offset = 0;
             int firstEntryKey = *(float*) pageData;
-            int recordsEndOffset = PAGE_SIZE - PAGE_TYPE_OFFSET - getFreeSpaceFromPage(pageData);
+            int recordsEndOffset = getEndOfRecordOffsetFromPage(pageData);
             while(offset <= PAGE_SIZE) {
                 void* currentOffsetEntry = calloc(PAGE_SIZE, 1);
                 int currentOffsetEntryLen;
@@ -375,6 +382,12 @@ RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribut
                     } else {
                         int offsetToSplit = offsetTemp + sizeof(float) + sizeof(RID);
                         int lengthToShift = recordsEndOffset - offsetToSplit;
+                        //TODO: changes exist here
+                        if(*(float*)key < *(float*)((char*)pageData + offsetToSplit)) {
+                            location = 0;
+                        } else {
+                            location = 1;
+                        }
                         memcpy(newPageData, (char*)pageData + offsetToSplit, lengthToShift);
                         setFreeSpace(newPageData, PAGE_SIZE - lengthToShift - NEXT_PAGE_OFFSET);
                         setFreeSpace(pageData, getFreeSpaceFromPage(pageData) + lengthToShift);
@@ -394,8 +407,13 @@ RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribut
                     if(currentKeyT != firstEntryKey) {
                         int offsetToSplit = offset;
                         int lengthToShift = recordsEndOffset - offsetToSplit;
+                        if(*(float*)key < *(float*)((char*)pageData + offsetToSplit)) {
+                            location = 0;
+                        } else {
+                            location = 1;
+                        }
                         memcpy(newPageData, (char*)pageData + offsetToSplit, lengthToShift);
-                        setFreeSpace(newPageData, PAGE_SIZE - lengthToShift - PAGE_TYPE_OFFSET);
+                        setFreeSpace(newPageData, PAGE_SIZE - lengthToShift - NEXT_PAGE_OFFSET);
                         setFreeSpace(pageData, getFreeSpaceFromPage(pageData) + lengthToShift);
                         setPageType(newPageData, LEAF);
                         memset((char*)pageData + offsetToSplit, 0, lengthToShift);
@@ -414,7 +432,7 @@ RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribut
             int firstEntryKeyLength = *(unsigned short*)pageData;
             char* firstEntryKey = (char*) pageData + sizeof(unsigned short);
 
-            int recordsEndOffset = PAGE_SIZE - PAGE_TYPE_OFFSET - getFreeSpaceFromPage(pageData);
+            int recordsEndOffset = getEndOfRecordOffsetFromPage(pageData);
             while(offset <= PAGE_SIZE) {
                 void* currentOffsetEntry = calloc(PAGE_SIZE, 1);
                 int currentOffsetEntryLen;
@@ -446,8 +464,23 @@ RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribut
                     } else {
                         int offsetToSplit = offsetTemp + sizeof(unsigned short) + keyLength + sizeof(RID);
                         int lengthToShift = recordsEndOffset - offsetToSplit;
+
+                        int len_s = *(int*)key;
+                        int len1_s = *(int*)((char*)pageData + offsetToSplit);
+                        char* key_s = (char*) calloc(PAGE_SIZE, 1);
+                        char* key1_s = (char*) calloc(PAGE_SIZE, 1);
+                        memcpy(key_s, (char*)key + sizeof(int), len_s);
+                        memcpy(key1_s, (char*)pageData + offsetToSplit + sizeof(unsigned short), len1_s); //TODO: if shit breaks down look here
+                        if(strcmp(key_s, key1_s) < 0) {
+                            location = 0;
+                        } else {
+                            location = 1;
+                        }
+                        free(key_s);
+                        free(key1_s);
+
                         memcpy(newPageData, (char*)pageData + offsetToSplit, lengthToShift);
-                        setFreeSpace(newPageData, PAGE_SIZE - lengthToShift - PAGE_TYPE_OFFSET);
+                        setFreeSpace(newPageData, PAGE_SIZE - lengthToShift - NEXT_PAGE_OFFSET);
                         setFreeSpace(pageData, getFreeSpaceFromPage(pageData) + lengthToShift);
                         setPageType(newPageData, LEAF);
                         memset((char*)pageData + offsetToSplit, 0, lengthToShift);
@@ -466,8 +499,23 @@ RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribut
                     if(strcmp(currentKeyT, firstEntryKey) != 0) { //TODO: find a way to change this to strncmp
                         int offsetToSplit = offset;
                         int lengthToShift = recordsEndOffset - offsetToSplit;
+
+                        int len_s = *(int*)key;
+                        int len1_s = *(int*)((char*)pageData + offsetToSplit);
+                        char* key_s = (char*) calloc(PAGE_SIZE, 1);
+                        char* key1_s = (char*) calloc(PAGE_SIZE, 1);
+                        memcpy(key_s, (char*)key + sizeof(int), len_s);
+                        memcpy(key1_s, (char*)pageData + offsetToSplit + sizeof(unsigned short), len1_s); //TODO: if shit breaks down look here
+                        if(strcmp(key_s, key1_s) < 0) {
+                            location = 0;
+                        } else {
+                            location = 1;
+                        }
+                        free(key_s);
+                        free(key1_s);
+
                         memcpy(newPageData, (char*)pageData + offsetToSplit, lengthToShift);
-                        setFreeSpace(newPageData, PAGE_SIZE - lengthToShift - PAGE_TYPE_OFFSET);
+                        setFreeSpace(newPageData, PAGE_SIZE - lengthToShift - NEXT_PAGE_OFFSET);
                         setFreeSpace(pageData, getFreeSpaceFromPage(pageData) + lengthToShift);
                         setPageType(newPageData, LEAF);
                         memset((char*)pageData + offsetToSplit, 0, lengthToShift);
@@ -526,7 +574,6 @@ RC IndexManager::squeezeEntryIntoNonLeaf(void* pageData, const Attribute &attrib
                 }
                 float currentKey = *(float *) ((char*)pageData + offset);
                 if (*(float *) key < currentKey) {
-                    int endOfRecordsOffset = PAGE_SIZE - PAGE_TYPE_OFFSET - getFreeSpaceFromPage(pageData);
                     int lengthToShift = endOfRecordsOffset - offset;
                     if(lengthToShift > 0)
                         memmove((char *) pageData + offset + sizeof(float) + sizeof(PageNum), (char *) pageData + offset, lengthToShift);
@@ -804,7 +851,7 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                 }
                 case TypeVarChar: {
                     int key_length = *(int*)key;
-                    spaceNeeded = sizeof(int) + key_length + sizeof(PageNum);
+                    spaceNeeded = sizeof(unsigned short) + key_length + sizeof(PageNum);
                     break;
                 }
                 default:
@@ -814,6 +861,9 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                 squeezeEntryIntoNonLeaf(pageData, attribute, splitKey, newChildPageNum);
                 newChildPageNum = -1;
                 memset(splitKey, 0, PAGE_SIZE);
+                result = ixfileHandle.writePage(currPageNum, pageData);
+                if(result != 0)
+                    cout << "Write after non split insert failed"<<endl;
                 return 0;
             } else {
                 cout << "Split of a non-leaf node triggered!" << endl;
@@ -825,6 +875,31 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                 } else {
                     squeezeEntryIntoNonLeaf(newPageData, attribute, splitKey, newChildPageNum);
                 }
+
+                switch(attribute.type) {
+                    case TypeInt: {
+                        *(int*)splitKey = *(int*)((char*)newPageData);
+                        memmove(newPageData, (char*)newPageData + sizeof(int), sizeof(int));
+                        setFreeSpace(newPageData, getFreeSpaceFromPage(newPageData) - sizeof(int));
+                        break;
+                    }
+                    case TypeReal: {
+                        *(float*)splitKey = *(float*)((char*)newPageData);
+                        memmove(newPageData, (char*)newPageData + sizeof(float), sizeof(float));
+                        setFreeSpace(newPageData, getFreeSpaceFromPage(newPageData) - sizeof(float));
+                        break;
+                    }
+                    case TypeVarChar: {
+                        int key_length = *(unsigned short*)((char*)newPageData);
+                        memcpy(splitKey, (char*)newPageData + sizeof(PageNum), sizeof(unsigned short) + key_length);
+                        memcpy(newPageData, (char*)newPageData + sizeof(unsigned short) + key_length, sizeof(unsigned short) + key_length);
+                        setFreeSpace(newPageData, getFreeSpaceFromPage(newPageData) - (sizeof(unsigned short) + key_length));
+                        break;
+                    }
+                    default:
+                        break;
+                }
+
                 result = ixfileHandle.appendPage(newPageData);
                 if(result != 0)
                     cout << "[ERROR]Issue in append page during non-leaf split" << endl;
@@ -832,8 +907,10 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                 if(result != 0)
                     cout << "[ERROR]Issue in write page during non-leaf split" << endl;
                 PageNum newlyAddedPageNum = ixfileHandle.getPersistedAppendCounter() - 1;
-                newChildPageNum = newlyAddedPageNum;
-                *(int*)splitKey = *(int*)newPageData;
+
+                /*********Deserves special treatment*************/
+                newChildPageNum = newlyAddedPageNum; //vastly understated step
+                /************************************************/
 
                 if(indexRootNodeMap[ixfileHandle.fileName] == currPageNum) {
                     cout << "Root non leaf node just split"<<endl;
@@ -884,8 +961,8 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
         int entryLen;
         createLeafEntry(attribute, key, rid, entry, entryLen);
         if(freeSpace >= entryLen) {
-            if(freeSpace == (PAGE_SIZE - 4)) {
-                cout<<"First entry: "<< (char*)entry+2 <<endl;
+            if(freeSpace == (PAGE_SIZE - NEXT_PAGE_OFFSET)) {
+                cout<<"First entry: "<< *(int*)entry <<endl;
                 memcpy(pageData, entry, entryLen);
                 setFreeSpace(pageData, getFreeSpaceFromPage(pageData) - entryLen);
             } else {
@@ -900,16 +977,29 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
             newChildPageNum = -1;
         } else {
             void* newPageData = calloc(PAGE_SIZE, 1);
-            splitLeafNode(pageData, newPageData, attribute, entry, entryLen, key, rid);
-            squeezeEntryIntoLeaf(newPageData, attribute, entry, entryLen, key, rid);
+            int location;
+            splitLeafNode(pageData, newPageData, attribute, entry, entryLen, key, rid, location);
+
+//            int location;
+//            splitNonLeafNode(pageData, newPageData, key, attribute, newChildPageNum, location);
+//            if(location == 0) {
+//                squeezeEntryIntoNonLeaf(pageData, attribute, splitKey, newChildPageNum);
+//            } else {
+//                squeezeEntryIntoNonLeaf(newPageData, attribute, splitKey, newChildPageNum);
+//            }
+            if(location == 0) {
+                squeezeEntryIntoLeaf(pageData, attribute, entry, entryLen, key, rid);
+            } else {
+                squeezeEntryIntoLeaf(newPageData, attribute, entry, entryLen, key, rid);
+            }
             result = ixfileHandle.appendPage(newPageData);
-            if(result != 0)
-                cout << "[ERROR]Issue in append page during leaf split" << endl;
-            result = ixfileHandle.writePage(currPageNum, pageData);
             if(result != 0)
                 cout << "[ERROR]Issue in append page during leaf split" << endl;
             PageNum newlyAddedPageNum = ixfileHandle.getPersistedAppendCounter() - 1;
             setNextSiblingPage(pageData, newlyAddedPageNum);
+            result = ixfileHandle.writePage(currPageNum, pageData);
+            if(result != 0)
+                cout << "[ERROR]Issue in append page during leaf split" << endl;
             newChildPageNum = newlyAddedPageNum;
             switch(attribute.type) {
                 case TypeInt: {
@@ -937,20 +1027,20 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                 int sizeOfInternalKey;
                 switch(attribute.type) {
                     case TypeInt: {
-                        *(int*)((char*)newRootNode + sizeof(int)) = *(int*)newPageData;
+                        *(int*)((char*)newRootNode + sizeof(int)) = *(int*)splitKey;
                         sizeOfInternalKey = 4;
                         *(PageNum *)((char*)newRootNode + sizeof(PageNum) + sizeof(int)) = newlyAddedPageNum;
                         break;
                     }
                     case TypeReal: {
-                        *(float*)((char*)newRootNode + sizeof(PageNum)) = *(float*)newPageData;
+                        *(float*)((char*)newRootNode + sizeof(PageNum)) = *(float*)splitKey;
                         sizeOfInternalKey = 4;
                         *(int*)((char*)newRootNode + sizeof(PageNum) + sizeof(float)) = newlyAddedPageNum;
                         break;
                     }
                     case TypeVarChar: {
-                        int varCharLength = *(unsigned short*)newPageData;
-                        memcpy((char*)newRootNode + sizeof(PageNum), newPageData, sizeof(unsigned short) + varCharLength);
+                        int varCharLength = *(unsigned short*)splitKey;
+                        memcpy((char*)newRootNode + sizeof(PageNum), splitKey, sizeof(unsigned short) + varCharLength);
                         sizeOfInternalKey = sizeof(unsigned short) + varCharLength;
                         *(int*)((char*)newRootNode + sizeof(PageNum) + sizeof(int)) = newlyAddedPageNum;
                         break;
@@ -1256,7 +1346,6 @@ void IndexManager::printBTreeRecursively(IXFileHandle &ixfileHandle, const Attri
 		}
 		cout << endl;
 		cout << "]" << endl << "}" << endl;
-        cout << "Printing stuck here!" << endl;
     }
 }
 
