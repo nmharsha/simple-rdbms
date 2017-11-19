@@ -1089,11 +1089,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
         int nextPage = -1;
         memcpy((unsigned short*)((char*)firstPageData+PAGE_SIZE-PAGE_TYPE_OFFSET), &pageType, sizeof(unsigned short));
         memcpy((unsigned short*)((char*)firstPageData+PAGE_SIZE-FREE_SPACE_OFFSET), &freeSpace, sizeof(unsigned short));
-<<<<<<< HEAD
         memcpy((PageNum*)((char*)firstPageData+PAGE_SIZE-NEXT_PAGE_OFFSET), &nextPage, sizeof(PageNum));
-=======
-        memcpy((int*)((char*)firstPageData+PAGE_SIZE-NEXT_PAGE_OFFSET), &nextPage, sizeof(int));
->>>>>>> 0ae8201f2e350a029f48fbd918b72061d30073c0
         result = ixfileHandle.appendPage(firstPageData);
         free(firstPageData);
         int pageNumAdded = ixfileHandle.getPersistedAppendCounter() - 1;
