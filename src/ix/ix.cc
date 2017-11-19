@@ -940,13 +940,30 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
                       bool        	highKeyInclusive,
                       IX_ScanIterator &ix_ScanIterator)
 {
+
 	ix_ScanIterator.ixfileHandle = &ixfileHandle;
 	ix_ScanIterator.attribute = attribute;
-	ix_ScanIterator.lowKey = lowKey;
-	ix_ScanIterator.highKey = highKey;
+	if(attribute.type == TypeInt || attribute.type == TypeReal) {
+		ix_ScanIterator.lowKey = calloc(4, 1);
+		memcpy(ix_ScanIterator.lowKey, lowKey, 4);
+		ix_ScanIterator.highKey = calloc(4, 1);
+		memcpy(ix_ScanIterator.highKey, highKey, 4);
+
+	} else {
+		int len1 = *(int*)lowKey;
+		ix_ScanIterator.lowKey = calloc(len1, 1);
+		memcpy(ix_ScanIterator.lowKey, (char*)lowKey + 4, len1);
+		int len2 = *(int*)highKey;
+		ix_ScanIterator.highKey = calloc(len2, 1);
+		memcpy(ix_ScanIterator.highKey, (char*)highKey + 4, len2);
+	}
+	float low = *(float *) ix_ScanIterator.lowKey;
+	cout << "Low: " << low << endl;
+
 	ix_ScanIterator.lowKeyInclusive = lowKeyInclusive;
 	ix_ScanIterator.highKeyInclusive = highKeyInclusive;
 	ix_ScanIterator.indexManager = IndexManager::instance();
+	ix_ScanIterator.scanPageData = calloc(PAGE_SIZE, 1);
 
 	PageNum root = indexRootNodeMap[ixfileHandle.fileName];
 	int bytesToRead;
@@ -954,11 +971,11 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
 		cout << "Its favorable type" << endl;
 		bytesToRead = 4;
 	}
-	void* pageData = calloc(PAGE_SIZE, 1);
-	ixfileHandle.readPage(root, pageData);
+//	void* pageData = calloc(PAGE_SIZE, 1);
+	ixfileHandle.readPage(root, ix_ScanIterator.scanPageData);
 	cout << "root page: " << root << endl;
 	cout << "read the page" << endl;
-	int leafPage = findLeaf(ixfileHandle, pageData, root, attribute, lowKey);
+	int leafPage = findLeaf(ixfileHandle, ix_ScanIterator.scanPageData, root, attribute, ix_ScanIterator.lowKey);
 	if(leafPage == -1) {
 		cout << "weirdddd" << endl;
 		// doesnt exist, return something or fill up the data members of ixscan
@@ -967,17 +984,17 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
 	cout << "Leaf Page: " << leafPage << endl;
 	// Scan through the leaf to find the first one
 	int offset = 0;
-	int lastOffset = getEndOfRecordOffsetFromPage(pageData);
+	int lastOffset = getEndOfRecordOffsetFromPage(ix_ScanIterator.scanPageData);
 	cout << "Last off set: " << lastOffset << endl;
 	// THIS IS FOR INT
-	float key = getRealValueAtOffset(pageData, offset);
-	float low = *(float *) lowKey;
-	cout << "Low: " << low << endl;
+	float key = getRealValueAtOffset(ix_ScanIterator.scanPageData, offset);
+//	float low2 = *(float *) ix_ScanIterator.lowKey;
+	cout << "Low2: " << low << endl;
 	cout << "First key: " << key << endl;
 
 	while(offset < lastOffset && key < low){
 		offset += 12;
-		key = getRealValueAtOffset(pageData, offset);
+		key = getRealValueAtOffset(ix_ScanIterator.scanPageData, offset);
 	}
 	cout << "\n";
 	cout << "After while loop.." << endl;
@@ -992,7 +1009,7 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
 		if(key == low && !lowKeyInclusive) {
 			while(key == low){
 				offset += 12;
-				key = getRealValueAtOffset(pageData, offset);
+				key = getRealValueAtOffset(ix_ScanIterator.scanPageData, offset);
 			}
 			ix_ScanIterator.scanOffset = offset;
 //			key = getRealValueAtOffset(pageData, offset);
@@ -1043,9 +1060,13 @@ int IndexManager::findLeaf(IXFileHandle &ixfileHandle, void* pageData, PageNum c
 			float low = *(float *) lowKey;
 			bool found = false;
 			if(key == low) {
+				cout << "key == low" << endl;
 				offset += 4;
 				found = true;
 			} else if(low < key) {
+				cout << "low, key: ";
+				cout << low << "," << key << endl;
+				cout << "low < key" << endl;
 				offset -= 4;
 				found = true;
 			}
@@ -1095,8 +1116,8 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 
 	//TODO: Take care of duplicate values for highkeyinclusive
 	if(attribute.type == TypeInt) {
-		ixfileHandle->readPage(leafPageNum, pageData);
-		int rawKey = getIntValueAtOffset(pageData, scanOffset);
+//		ixfileHandle->readPage(leafPageNum, scanPageData);
+		int rawKey = getIntValueAtOffset(scanPageData, scanOffset);
 		if(rawKey <= *(int*) highKey) {
 			if(rawKey == *(int *)highKey && highKeyInclusive){
 				end = true;
@@ -1106,18 +1127,18 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 		} else {
 			return IX_EOF;
 		}
-		memcpy(key, (char*) pageData + scanOffset, 4);
+		memcpy(key, (char*) scanPageData + scanOffset, 4);
 		memcpy(latestKey, (char*) key, 4);
-		rid.pageNum = getIntValueAtOffset(pageData, scanOffset + 4);
-		rid.slotNum = getIntValueAtOffset(pageData, scanOffset + 8);
+		rid.pageNum = getIntValueAtOffset(scanPageData, scanOffset + 4);
+		rid.slotNum = getIntValueAtOffset(scanPageData, scanOffset + 8);
 		scanOffset += 12;
 	} else if (attribute.type == TypeReal){
 		cout << "In real" << endl;
 		cout << "Scan offset: " << scanOffset << endl;
-		int result = ixfileHandle->readPage(leafPageNum, pageData);
-		if(result != 0)
-			cout << "Bad reading of page in scan::getNext"<<endl;
-		float rawKey = getRealValueAtOffset(pageData, scanOffset);
+//		int result = ixfileHandle->readPage(leafPageNum, scanPageData);
+//		if(result != 0)
+//			cout << "Bad reading of page in scan::getNext"<<endl;
+		float rawKey = getRealValueAtOffset(scanPageData, scanOffset);
 		cout << "Raw key is: " << rawKey << endl;
 		if(rawKey <= *(float *) highKey) {
 			cout << "raw key is less" << endl;
@@ -1134,19 +1155,20 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 		}
 		cout << "Pass if" << endl;
 		cout << "scanoffset" << scanOffset << endl;
-		memcpy(key, (char*) pageData + scanOffset, 4);
+		memcpy(key, (char*) scanPageData + scanOffset, 4);
 		cout << "Key to be set: " << *(float *) key << endl;
 //		memcpy(latestKey, (char*) key + 0, 4);
-		rid.pageNum = getIntValueAtOffset(pageData, scanOffset + 4);
-		rid.slotNum = getIntValueAtOffset(pageData, scanOffset + 8);
+		rid.pageNum = getIntValueAtOffset(scanPageData, scanOffset + 4);
+		rid.slotNum = getIntValueAtOffset(scanPageData, scanOffset + 8);
 		scanOffset += 12;
 		cout << "Scan offset: " << scanOffset << endl;
 
 	}
 
-	if(scanOffset >= indexManager->getEndOfRecordOffsetFromPage(pageData)) {
+	if(scanOffset >= indexManager->getEndOfRecordOffsetFromPage(scanPageData)) {
 		// read the PAGE_SIZE - 6
 		leafPageNum = getIntValueAtOffset(pageData, PAGE_SIZE - 8);
+		ixfileHandle->readPage(leafPageNum, scanPageData);
 		scanOffset = 0;
 	}
 

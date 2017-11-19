@@ -122,8 +122,8 @@ public:
     //class members
     IXFileHandle* ixfileHandle;
     Attribute attribute;
-    const void* lowKey;
-    const void* highKey;
+    void* lowKey;
+    void* highKey;
     bool lowKeyInclusive;
     bool highKeyInclusive;
     IndexManager* indexManager;
@@ -132,7 +132,7 @@ public:
     int scanOffset;
     PageNum leafPageNum;
     bool end;
-
+    void* scanPageData;
     float getRealValueAtOffset(void *pageRecord, int offset);
     int getIntValueAtOffset(void *pageRecord, int offset);
     int findLeaf(IndexManager &indexManager, void* pageData, PageNum currPageNum);
