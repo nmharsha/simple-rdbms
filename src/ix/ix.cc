@@ -63,7 +63,12 @@ RC IndexManager::createFile(const string &fileName) {
 
 RC IndexManager::destroyFile(const string &fileName)
 {
-    return pagedFileManager -> destroyFile(fileName);
+    int result = pagedFileManager -> destroyFile(fileName);
+    if(result != 0)
+        return result;
+    indexRootNodeMap.erase(fileName);
+    persistIndexRootNodeMap();
+    return 0;
 }
 
 RC IndexManager::openFile(const string &fileName, IXFileHandle &ixfileHandle)
