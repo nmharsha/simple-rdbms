@@ -992,6 +992,7 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
             } else {
                 squeezeEntryIntoLeaf(newPageData, attribute, entry, entryLen, key, rid);
             }
+            setNextSiblingPage(newPageData, -1);
             result = ixfileHandle.appendPage(newPageData);
             if(result != 0)
                 cout << "[ERROR]Issue in append page during leaf split" << endl;
