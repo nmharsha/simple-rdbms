@@ -997,12 +997,14 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
             } else {
                 squeezeEntryIntoLeaf(newPageData, attribute, entry, entryLen, key, rid);
             }
-            setNextSiblingPage(newPageData, -1);
+            setNextSiblingPage(newPageData, getNextSiblingPage(pageData));
+//            cout << "Next sibling new set is: " << getNextSiblingPage(newPageData) << endl;
             result = ixfileHandle.appendPage(newPageData);
             if(result != 0)
                 cout << "[ERROR]Issue in append page during leaf split" << endl;
             PageNum newlyAddedPageNum = ixfileHandle.getPersistedAppendCounter() - 1;
             setNextSiblingPage(pageData, newlyAddedPageNum);
+//            cout << "Next sibling old set is: " << getNextSiblingPage(pageData) << endl;
             result = ixfileHandle.writePage(currPageNum, pageData);
             if(result != 0)
                 cout << "[ERROR]Issue in append page during leaf split" << endl;
