@@ -47,18 +47,23 @@ int testCase_3(const string &indexFileName, const Attribute &attribute)
 
     cerr << "Before scan - R W A: " << readPageCount << " " << writePageCount << " " << appendPageCount << endl;
 
+    indexManager->printBtree(ixfileHandle, attribute);
     // Conduct a scan
-    rc = indexManager->scan(ixfileHandle, attribute, NULL, NULL, true, true, ix_ScanIterator);
+    int a = 200;
+    int b = 10000;
+    rc = indexManager->scan(ixfileHandle, attribute, &a, &b, true, false, ix_ScanIterator);
     assert(rc == success && "indexManager::scan() should not fail.");
-
+    cout << "After Scan" << endl;
     // There should be one record
     int count = 0;
     while(ix_ScanIterator.getNextEntry(rid, &key) == success)
     {
+        cout << "In while loop" << endl;
         cerr << "Returned rid from a scan: " << rid.pageNum << " " << rid.slotNum << endl;
         assert(rid.pageNum == 500 && "rid.pageNum is not correct.");
         assert(rid.slotNum == 20 && "rid.slotNum is not correct.");
         count++;
+//        cout << "Count is: " << count << endl;
     }
     assert(count == 1 && "scan count is not correct.");
 
