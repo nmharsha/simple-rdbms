@@ -85,6 +85,8 @@ int testCase_13(const string &indexFileName, const Attribute &attribute)
         numOfTuplesTobeScanned++;
     }
 
+    indexManager->printBtree(ixfileHandle, attribute);
+
     // collect counter
     // we will eyeball those numbers to see if they are reasonable.
     unsigned readPageCount = 0;
