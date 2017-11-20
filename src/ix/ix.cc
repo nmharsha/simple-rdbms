@@ -596,7 +596,7 @@ RC IndexManager::squeezeEntryIntoNonLeaf(void* pageData, const Attribute &attrib
                 if(offset >= endOfRecordsOffset) {
                     int varCharLen = *(unsigned short*)key;
                     memcpy((char *) pageData + offset, key, sizeof(unsigned short) + varCharLen);
-                    *(PageNum*)((char*)pageData + sizeof(unsigned short) + varCharLen) = pointerPageNum;
+                    *(PageNum*)((char*)pageData + offset + sizeof(unsigned short) + varCharLen) = pointerPageNum;
                     setFreeSpace(pageData, getFreeSpaceFromPage(pageData) - (sizeof(unsigned short) + varCharLen +
                                                                              sizeof(PageNum)));
                     return 0;
@@ -673,9 +673,9 @@ PageNum IndexManager::getRightInsertPage(void* pageData, const Attribute &attrib
                 break;
             }
             case TypeVarChar: {
-                int varcharLength = *(unsigned short*)((char*)key);
+                int varcharLength = *(int*)key;
                 char* key_string = (char*) calloc(varcharLength, 1);
-                memcpy(key_string, (char*)key + sizeof(unsigned short), varcharLength);
+                memcpy(key_string, (char*)key + sizeof(int), varcharLength);
 
                 int varcharLength_i = *(unsigned short*)((char*)pageData + offset);
                 char* key_i = (char*) calloc(varcharLength_i, 1);
@@ -725,7 +725,7 @@ RC IndexManager::splitNonLeafNode(void* pageData, void* newPageData, const void*
             }
             case TypeVarChar: {
                 int varcharLength = *(unsigned short*)((char*)pageData + offset);
-                entryLength = sizeof(unsigned int) + varcharLength + sizeof(PageNum);
+                entryLength = sizeof(unsigned short) + varcharLength + sizeof(PageNum);
                 break;
             }
             default: {
@@ -756,8 +756,10 @@ RC IndexManager::splitNonLeafNode(void* pageData, void* newPageData, const void*
                 case TypeVarChar: {
                     int varcharLength = *(unsigned short*)((char*)pageData + offset);
                     char* current_s = (char*)calloc(varcharLength, 1);
-                    int varcharLength_key = *(int*)key;
+                    memcpy(current_s, (char*)pageData + offset + sizeof(unsigned short), varcharLength);
+                    unsigned short varcharLength_key = *(unsigned short*)key;
                     char* key_s = (char*)calloc(varcharLength_key, 1);
+                    memcpy(key_s, (char*)key + sizeof(unsigned short), varcharLength_key);
                     if(strcmp(key_s, current_s) < 0) {
                         location = 0;
                     } else {
@@ -856,7 +858,7 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                     break;
                 }
                 case TypeVarChar: {
-                    int key_length = *(int*)key;
+                    int key_length = *(unsigned short*)splitKey;
                     spaceNeeded = sizeof(unsigned short) + key_length + sizeof(PageNum);
                     break;
                 }
@@ -875,7 +877,7 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
 //                cout << "Split of a non-leaf node triggered!" << endl;
                 void* newPageData = calloc(PAGE_SIZE, 1);
                 int location;
-                splitNonLeafNode(pageData, newPageData, key, attribute, newChildPageNum, location);
+                splitNonLeafNode(pageData, newPageData, splitKey, attribute, newChildPageNum, location);
                 if(location == 0) {
                     squeezeEntryIntoNonLeaf(pageData, attribute, splitKey, newChildPageNum, true);
                 } else {
@@ -901,7 +903,7 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                     case TypeVarChar: {
                         int key_length = *(unsigned short*)((char*)newPageData);
                         int lengthToShift = getEndOfRecordOffsetFromPage(newPageData) - (sizeof(unsigned short) + key_length);
-                        memcpy(splitKey, (char*)newPageData + sizeof(PageNum), sizeof(unsigned short) + key_length);
+                        memcpy(splitKey, (char*)newPageData, sizeof(unsigned short) + key_length);
                         memmove(newPageData, (char*)newPageData + sizeof(unsigned short) + key_length, lengthToShift);
                         setFreeSpace(newPageData, getFreeSpaceFromPage(newPageData) + (sizeof(unsigned short) + key_length));
                         break;
@@ -929,7 +931,7 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                     int sizeOfInternalKey;
                     switch(attribute.type) {
                         case TypeInt: {
-                            *(int*)((char*)newRootNode + sizeof(int)) = *(int*)splitKey;
+                            *(int*)((char*)newRootNode + sizeof(PageNum)) = *(int*)splitKey;
                             sizeOfInternalKey = 4;
                             *(PageNum *)((char*)newRootNode + sizeof(PageNum) + sizeof(int)) = newlyAddedPageNum;
                             break;
@@ -937,14 +939,14 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                         case TypeReal: {
                             *(float*)((char*)newRootNode + sizeof(PageNum)) = *(float*)splitKey;
                             sizeOfInternalKey = 4;
-                            *(int*)((char*)newRootNode + sizeof(PageNum) + sizeof(float)) = newlyAddedPageNum;
+                            *(PageNum*)((char*)newRootNode + sizeof(PageNum) + sizeof(float)) = newlyAddedPageNum;
                             break;
                         }
                         case TypeVarChar: {
                             int varCharLength = *(unsigned short*)splitKey;
                             memcpy((char*)newRootNode + sizeof(PageNum), splitKey, sizeof(unsigned short) + varCharLength);
                             sizeOfInternalKey = sizeof(unsigned short) + varCharLength;
-                            *(int*)((char*)newRootNode + sizeof(PageNum) + sizeof(int)) = newlyAddedPageNum;
+                            *(PageNum*)((char*)newRootNode + sizeof(PageNum) + sizeof(unsigned short) + varCharLength) = newlyAddedPageNum;
                             break;
                         }
                         default:

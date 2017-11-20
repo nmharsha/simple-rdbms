@@ -26,7 +26,7 @@ int testCase_11(const string &indexFileName, const Attribute &attribute){
     unsigned inRecordNum = 0;
     unsigned outRecordNum = 0;
     unsigned numOfTuples = 1000 * 1000;
-    numOfTuples = 10;
+    numOfTuples = 6;
 
     // create index file
 //    RC rc;
@@ -50,6 +50,7 @@ int testCase_11(const string &indexFileName, const Attribute &attribute){
 
         rc = indexManager->insertEntry(ixfileHandle, attribute, key, rid);
         assert(rc == success && "indexManager::insertEntry() should not fail.");
+        cout << "Insertion of i= " << i << endl;
         inRecordNum += 1;
         if (inRecordNum % 200000 == 0) {
             cerr << inRecordNum << " inserted - rid: " << rid.pageNum << " " << rid.slotNum << endl;
