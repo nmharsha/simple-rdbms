@@ -998,13 +998,11 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                 squeezeEntryIntoLeaf(newPageData, attribute, entry, entryLen, key, rid);
             }
             setNextSiblingPage(newPageData, getNextSiblingPage(pageData));
-//            cout << "Next sibling new set is: " << getNextSiblingPage(newPageData) << endl;
             result = ixfileHandle.appendPage(newPageData);
             if(result != 0)
                 cout << "[ERROR]Issue in append page during leaf split" << endl;
             PageNum newlyAddedPageNum = ixfileHandle.getPersistedAppendCounter() - 1;
             setNextSiblingPage(pageData, newlyAddedPageNum);
-//            cout << "Next sibling old set is: " << getNextSiblingPage(pageData) << endl;
             result = ixfileHandle.writePage(currPageNum, pageData);
             if(result != 0)
                 cout << "[ERROR]Issue in append page during leaf split" << endl;
@@ -1658,9 +1656,9 @@ int IndexManager::findLeaf(IXFileHandle &ixfileHandle, void* pageData, PageNum c
 
 RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 {
-	cout << "In get next entry..." << endl;
-	cout << "Current leaf page: " << leafPageNum << endl;
-	cout << "next Pointer of current page: " << indexManager->getIntValueAtOffset(scanPageData, PAGE_SIZE - 8) << endl;
+//	cout << "In get next entry..." << endl;
+//	cout << "Current leaf page: " << leafPageNum << endl;
+//	cout << "next Pointer of current page: " << indexManager->getIntValueAtOffset(scanPageData, PAGE_SIZE - 8) << endl;
 	if(end) {
 		// done, call close?
         cout << "ending" << endl;
@@ -1670,13 +1668,13 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 
 	//TODO: Take care of duplicate values for highkeyinclusive
 	if(attribute.type == TypeInt) {
-        cout << "its int" << endl;
+//        cout << "its int" << endl;
 //		ixfileHandle->readPage(leafPageNum, scanPageData);
 		int rawKey = getIntValueAtOffset(scanPageData, scanOffset);
-		cout << "Raw key INT: " << rawKey << endl;
+//		cout << "Raw key INT: " << rawKey << endl;
 		if(highKey != NULL) {
 			if(rawKey <= *(int*) highKey) {
-				cout << "Its low, int key" << endl;
+//				cout << "Its low, int key" << endl;
 				if(rawKey == *(int *)highKey && highKeyInclusive){
 //					cout << "setting end true" << endl;
 //					end = true;
@@ -1688,7 +1686,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 			}
 		}
 		memcpy(key, (char*) scanPageData + scanOffset, 4);
-        cout << *(int *) key << endl;
+//        cout << *(int *) key << endl;
 		//memcpy(latestKey, (char*) key, 4);
 		rid.pageNum = getIntValueAtOffset(scanPageData, scanOffset + 4);
 		rid.slotNum = getIntValueAtOffset(scanPageData, scanOffset + 8);
@@ -1731,9 +1729,17 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 
 	if(scanOffset >= indexManager->getEndOfRecordOffsetFromPage(scanPageData)) {
 		// read the PAGE_SIZE - 6
-//		cout << "ScanOffset reached its bound: " << scanOffset << endl;
+		cout << "ScanOffset reached its bound: " << scanOffset << endl;
+		cout << "Current Page Number: " << leafPageNum << endl;
+		int curr = leafPageNum;
 		leafPageNum = getIntValueAtOffset(scanPageData, PAGE_SIZE - 8);
-		cout << "leafpage: " << leafPageNum << endl;
+		cout << "Next page: " << leafPageNum << endl;
+
+		if(curr > leafPageNum) {
+			cout << "abnormal behavior" << endl;
+			return -1;
+		}
+//		cout << "Next page: " << leafPageNum << endl;
 		if((int)leafPageNum != -1){
 			ixfileHandle->readPage(leafPageNum, scanPageData);
 			scanOffset = 0;
@@ -1741,8 +1747,8 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 			end = true;
 		}
 	}
-    cout << "Success" << endl;
-    cout << "Scan offset for next call: " << scanOffset << endl;
+//    cout << "Success" << endl;
+//    cout << "Scan offset for next call: " << scanOffset << endl;
     return 0;
 }
 
