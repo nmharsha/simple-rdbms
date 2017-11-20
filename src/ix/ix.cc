@@ -1366,12 +1366,12 @@ void IndexManager::printBTreeRecursively(IXFileHandle &ixfileHandle, const Attri
 //                    void *length = calloc(2, 1);
                     int length = *(unsigned short*)((char*)pageData + offset);
 //                    memcpy(length, (char*)pageData + offset, sizeof(unsigned short));
-                    offset += sizeof(unsigned short);
-                    void *key = calloc(length, 1);
-                    memcpy(key, (char*)pageData + offset + sizeof(unsigned short),length);
                     if(offset != 4) {
                         cout << ",";
                     }
+                    offset += sizeof(unsigned short);
+                    void *key = calloc(length, 1);
+                    memcpy(key, (char*)pageData + offset + sizeof(unsigned short),length);
                     cout <<"\"" << (char *) key << "\"";
                     offset += length;
                 }
@@ -2155,5 +2155,9 @@ RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePa
     writePageCount = this->writePageCounter;
     appendPageCount = this->appendPageCounter;
     return 0;
+}
+
+int IXFileHandle::getPersistedAppendCounter() {
+    return FileHandle::getPersistedAppendCounter();
 }
 
