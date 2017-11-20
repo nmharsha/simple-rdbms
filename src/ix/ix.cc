@@ -158,7 +158,7 @@ RC IndexManager::readLeafEntryAtOffset(int offset, void* pageData, const Attribu
             break;
         case TypeVarChar: {
             int varCharLength = *(unsigned short *) ((char *) pageData + offset);
-            cout << "Varchar length is as follows: " << varCharLength << endl;
+//            cout << "Varchar length is as follows: " << varCharLength << endl;
             currentOffsetEntryLen = sizeof(unsigned short) + varCharLength + sizeof(RID);
             memcpy(currentOffsetEntry, (char *) pageData + offset, currentOffsetEntryLen);
             break;
@@ -635,7 +635,9 @@ PageNum IndexManager::getRightInsertPage(void* pageData, const Attribute &attrib
     int endOfRecordsOffset = getEndOfRecordOffsetFromPage(pageData);
     int offset = 0;
     offset += sizeof(PageNum);
+    cout << "Stuck outside recursive hell!" << endl;
     while(offset < endOfRecordsOffset) {
+        cout << "Stuck in recursive hell!" << endl;
         switch(attribute.type) {
             case TypeInt: {
                 int key_i = *(int*)((char*)pageData + offset);
@@ -675,16 +677,28 @@ PageNum IndexManager::getRightInsertPage(void* pageData, const Attribute &attrib
             }
             case TypeVarChar: {
                 int varcharLength = *(int*)key;
+                cout << "Varchar length is: " << *(int*)key << endl;
+                cout << "And actual is " << ((char*)key+4) << endl;
                 char* key_string = (char*) calloc(varcharLength, 1);
                 memcpy(key_string, (char*)key + sizeof(int), varcharLength);
 
                 int varcharLength_i = *(unsigned short*)((char*)pageData + offset);
+                cout << "Varchar length_i is: " << varcharLength_i << endl;
                 char* key_i = (char*) calloc(varcharLength_i, 1);
                 memcpy(key_i, (char*)pageData + offset + sizeof(unsigned short), varcharLength_i);
                 PageNum p_i = *(PageNum*)((char*)pageData + offset + sizeof(unsigned short) + varcharLength_i);
                 if((offset + sizeof(unsigned short) + varcharLength_i + sizeof(PageNum)) >= endOfRecordsOffset) {
+                    cout << "Bro offset: " << offset << endl;
+                    cout << "The real fuck up is: " << key_string << endl;
+                    printf("%s\n", key_string);
+                    cout << "The second real fuck up is: " << key_i << endl;
                     if(strcmp(key_string, key_i) >= 0) {
+                        free(key_i);
+                        free(key_string);
                         return p_i;
+                    } else {
+                        cout << "Sudden death here" << endl;
+                        exit(0);
                     }
                 } else {
                     int varcharLength_iplus1 = *(unsigned short*)((char*)pageData + offset + sizeof(unsigned short) + varcharLength_i +
@@ -692,13 +706,20 @@ PageNum IndexManager::getRightInsertPage(void* pageData, const Attribute &attrib
                     char* key_iplus1 = (char*) calloc(varcharLength_iplus1, 1);
                     memcpy(key_iplus1, (char*)pageData + offset + sizeof(unsigned short) + varcharLength_i + sizeof(PageNum) +
                                        sizeof(unsigned short), varcharLength_iplus1);
+                    cout << "crappy fuck up is: " << key_i << " comparing with: " << key_string <<" and test: " << key_iplus1 << endl;
 
                     if((strcmp(key_string, key_i) >= 0) && (strcmp(key_string, key_iplus1) < 0)) {
+                        free(key_i);
+                        free(key_string);
+                        free(key_iplus1);
                         return p_i;
                     } else {
+                        cout << "The various values are: " << key_i << endl;
                         offset += (sizeof(unsigned short) + varcharLength_i + sizeof(PageNum));
                     }
+                    free(key_iplus1);
                 }
+                free(key_string);
                 free(key_i);
                 break;
             }
@@ -802,48 +823,58 @@ RC IndexManager::splitNonLeafNode(void* pageData, void* newPageData, const void*
  * This is the main recursive demon for insertion. Thread carefully cause it bites
  */
 RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum, const Attribute &attribute, const void* key, const RID &rid, PageNum &newChildPageNum, void* splitKey) {
+    cout << "Stuck in recursive!" << endl;
     void* pageData = calloc(PAGE_SIZE, 1);
     int result = ixfileHandle.readPage(currPageNum, pageData);
     if(result != 0)
         return result;
     int pageType = getPageTypeFromPage(pageData);
     int freeSpace = getFreeSpaceFromPage(pageData);
+    cout << "How"<<endl;
 
     if(pageType == NON_LEAF) {
-        PageNum p0 = *(PageNum*)pageData;
-        int key1 = *(int *)((char*)pageData + sizeof(PageNum));
+        cout << "How2"<<endl;
+//        PageNum p0 = *(PageNum*)pageData;
+//        int key1 = *(int *)((char*)pageData + sizeof(PageNum));
         PageNum  pi;
-        bool leftMostCondition;
-        switch(attribute.type) {
-            case TypeInt: {
-                leftMostCondition = (*(int*)key < *(int *)((char*)pageData + sizeof(PageNum))) ? true: false;
-                break;
-            }
-            case TypeReal: {
-                leftMostCondition = (*(float*)key < *(float *)((char*)pageData + sizeof(PageNum))) ? true: false;
-                break;
-            }
-            case TypeVarChar: {
-                int key_length = *(int*)key;
-                int key1_length = *(unsigned short*)((char*)pageData + sizeof(PageNum));
-                char* key_s = (char*) calloc(PAGE_SIZE, 1);
-                char* key1_s = (char*) calloc(PAGE_SIZE, 1);
-                memcpy(key_s, (char*)key + sizeof(int), key_length);
-                memcpy(key1_s, (char*)pageData + sizeof(PageNum) + sizeof(unsigned short), key1_length);
-                leftMostCondition = (strcmp(key_s, key1_s) < 0) ? true : false;
-                free(key_s);
-                free(key1_s);
-                break;
-            }
-            default:
-                break;
-        }
-        if(leftMostCondition) {
-            pi = p0;
-        } else {
-            pi = getRightInsertPage(pageData, attribute, key);
-        }
+        pi = findLeafModified(ixfileHandle, pageData, currPageNum, attribute, key);
+//        bool leftMostCondition;
+//        switch(attribute.type) {
+//            case TypeInt: {
+//                leftMostCondition = (*(int*)key < *(int *)((char*)pageData + sizeof(PageNum))) ? true: false;
+//                break;
+//            }
+//            case TypeReal: {
+//                leftMostCondition = (*(float*)key < *(float *)((char*)pageData + sizeof(PageNum))) ? true: false;
+//                break;
+//            }
+//            case TypeVarChar: {
+//                int key_length = *(int*)key;
+//                int key1_length = *(unsigned short*)((char*)pageData + sizeof(PageNum));
+//                char* key_s = (char*) calloc(PAGE_SIZE, 1);
+//                char* key1_s = (char*) calloc(PAGE_SIZE, 1);
+//                memcpy(key_s, (char*)key + sizeof(int), key_length);
+//                memcpy(key1_s, (char*)pageData + sizeof(PageNum) + sizeof(unsigned short), key1_length);
+//                leftMostCondition = (strcmp(key_s, key1_s) < 0) ? true : false;
+//                free(key_s);
+//                free(key1_s);
+//                break;
+//            }
+//            default:
+//                break;
+//        }
+//        if(leftMostCondition) {
+//            pi = p0;
+//        } else {
+//            cout << "How ba"<<endl;
+////            pi = getRightInsertPage(pageData, attribute, key);
+//            pi =
+//            cout << "How ba ends"<<endl;
+//
+//        }
+        cout << "Before"<<endl;
         result = insertIntoTree(ixfileHandle, pi, attribute, key, rid, newChildPageNum, splitKey);
+        cout << "After"<<endl;
 
 
 
@@ -878,6 +909,7 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
 //                cout << "Split of a non-leaf node triggered!" << endl;
                 void* newPageData = calloc(PAGE_SIZE, 1);
                 int location;
+                cout << "maybe here"<<endl;
                 splitNonLeafNode(pageData, newPageData, splitKey, attribute, newChildPageNum, location);
                 if(location == 0) {
                     squeezeEntryIntoNonLeaf(pageData, attribute, splitKey, newChildPageNum, true);
@@ -1669,6 +1701,121 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
 
 
 	return 0;
+}
+
+int IndexManager::findLeafModified(IXFileHandle &ixfileHandle, void* pageData, PageNum currPageNum, const Attribute &attribute, const void* lowKey){
+    cout << "In find leaf" << endl;
+    if(getPageTypeFromPage(pageData) == LEAF){
+        cout << "returning: " << currPageNum << endl;
+        return currPageNum;
+    }
+    int offset = 4;
+    while(offset < getEndOfRecordOffsetFromPage(pageData)){
+        if(attribute.type == TypeInt) {
+            bool found = false;
+            if(lowKey == NULL) {
+                found = true;
+                offset = 0;
+            } else {
+                int key = getIntValueAtOffset(pageData, offset);
+                int low = *(int *) lowKey;
+                cout << "Key in Int: " << key << endl;
+                cout << "Low in Int: " << low << endl;
+                if(key == low) {
+                    offset += 4;
+                    found = true;
+                } else if(low < key) {
+                    offset -= 4;
+                    found = true;
+                }
+            }
+            if(found) {
+                PageNum nextPageNum = getIntValueAtOffset(pageData, offset);
+                cout << "Going to next page: " << nextPageNum << endl;
+//                ixfileHandle.readPage(nextPageNum, pageData);
+                return nextPageNum;
+            }
+            offset += 8;
+        } else if(attribute.type == TypeReal) {
+            cout << "in real , cur pn: " << currPageNum << endl;
+            bool found = false;
+            if(lowKey == NULL) {
+                found = true;
+                offset = 0;
+            } else {
+                float key = getRealValueAtOffset(pageData, offset);
+                cout << "key here: " <<  key << endl;
+                float low = *(float *) lowKey;
+
+                if(key == low) {
+                    cout << "key == low" << endl;
+                    offset += 4;
+                    found = true;
+                } else if(low < key) {
+                    cout << "low, key: ";
+                    cout << low << "," << key << endl;
+                    cout << "low < key" << endl;
+                    offset -= 4;
+                    found = true;
+                }
+            }
+            if(found) {
+                PageNum nextPageNum = getIntValueAtOffset(pageData, offset);
+//                ixfileHandle.readPage(nextPageNum, pageData);
+                return nextPageNum;
+            }
+            offset += 8;
+            cout << "after 8+ offset: " << offset << endl;
+        } else if(attribute.type == TypeVarChar){
+//			cout << "In varchar, curr pg: " << currPageNum << endl;
+            bool found = false;
+//            int keyLen = getIntValueAtOffset(pageData, offset);
+            int keyLen = *(unsigned short *)pageData + offset;
+            void* keyPtr = calloc(keyLen + sizeof(unsigned short), 1);
+            void* keyStr = calloc(keyLen, 1);
+            memcpy(keyStr, (char*) pageData + offset + sizeof(unsigned short), keyLen);
+            memcpy(keyPtr, (char*) pageData + offset, keyLen + sizeof(unsigned short));
+            string key = string((char*)keyStr);
+
+            if(lowKey == NULL) {
+                found = true;
+                offset = 0;
+            } else {
+                int lowLen = *(int*) lowKey;
+                void* lowKeyStr = calloc(lowLen, 1);
+                memcpy(lowKeyStr, (char*)lowKey + sizeof(int), lowLen);
+                string low = string((char*)lowKeyStr);
+                int result = low.compare(key);
+                if(result == 0) {
+                    cout << "key and low varchar matches" << endl;
+                    offset += (sizeof(unsigned short) + keyLen);
+                    found = true;
+                } else if(result < 0) {
+                    cout << "low: " << low << endl;
+                    cout << "key: " << key << endl;
+                    offset -= sizeof(int);
+                    found = true;
+                }
+            }
+            if(found) {
+                PageNum nextPageNum = getIntValueAtOffset(pageData, offset);
+//                ixfileHandle.readPage(nextPageNum, pageData);
+                return nextPageNum;
+            }
+            offset += (sizeof(unsigned short) + keyLen);
+            offset += (sizeof(int));
+            cout << "After incrementing: " << (sizeof(int) + sizeof(unsigned short) + keyLen) << endl;
+            cout << "Offset in VC search: " << offset << endl;
+        }
+    }
+    if(offset >= getEndOfRecordOffsetFromPage(pageData)) {
+        cout << "last key reached" << endl;
+        PageNum nextPageNum = getIntValueAtOffset(pageData, offset - 4);
+//        ixfileHandle.readPage(nextPageNum, pageData);
+        return nextPageNum;
+    }
+    cout << "Hard luck" << endl;
+    return -1;
 }
 
 int IndexManager::findLeaf(IXFileHandle &ixfileHandle, void* pageData, PageNum currPageNum, const Attribute &attribute, const void* lowKey){

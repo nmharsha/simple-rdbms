@@ -106,7 +106,8 @@ public:
 		~IndexManager();
 
 
-
+    int findLeafModified(IXFileHandle &ixfileHandle, void *pageData, PageNum currPageNum, const Attribute &attribute,
+                         const void *lowKey);
 };
 
 typedef enum {

@@ -48,6 +48,7 @@ int testCase_13(const string &indexFileName, const Attribute &attribute)
     // insert entries
     for(unsigned i = 1; i <= numOfTuples; i++)
     {
+        cout << "Printing for i: " << i <<endl;
         count = ((i - 1) % 26) + 1;
         *(int *)key = count;
         for(unsigned j = 0; j < count; j++)
@@ -65,6 +66,8 @@ int testCase_13(const string &indexFileName, const Attribute &attribute)
             numOfTuplesTobeScanned++;
         }
     }
+
+//    return 0;
     
     // insert more entries
     *(int *)key = tested_ascii;
