@@ -7,8 +7,8 @@
 
 IndexManager *indexManager;
 
-int testCase_p2(const string &indexFileName1, const string &indexFileName2, 
-        const Attribute &attribute){
+int testCase_p2(const string &indexFileName1, const string &indexFileName2,
+                const Attribute &attribute){
 
     // insert 30,000 entries to two indexes
     // scan and delete
@@ -25,8 +25,8 @@ int testCase_p2(const string &indexFileName1, const string &indexFileName2,
     IX_ScanIterator ix_ScanIterator2;
     int compVal;
     int numOfTuples;
-    int A[200];
-    int B[300];
+    int A[20000];
+    int B[30000];
     int count = 0;
     int key;
     int key2;
@@ -48,7 +48,7 @@ int testCase_p2(const string &indexFileName1, const string &indexFileName2,
 
 
     // Prepare key entries
-    numOfTuples = 200;
+    numOfTuples = 20000;
     for(int i = 0; i < numOfTuples; i++)
     {
         A[i] = i;
@@ -71,12 +71,7 @@ int testCase_p2(const string &indexFileName1, const string &indexFileName2,
         assert(rc == success && "indexManager::insertEntry() should not fail.");
     }
 
-    indexManager->printBtree(ixfileHandle1, attribute);
-
-    cout << "Second tree"<<endl;
-    indexManager->printBtree(ixfileHandle2, attribute);
-
-    compVal = 100;
+    compVal = 5000;
 
     // Conduct a scan
     rc = indexManager->scan(ixfileHandle1, attribute, NULL, &compVal, true, true, ix_ScanIterator1);
@@ -89,8 +84,8 @@ int testCase_p2(const string &indexFileName1, const string &indexFileName2,
     count = 0;
     while(ix_ScanIterator1.getNextEntry(rid, &key) == success)
     {
-        if (ix_ScanIterator2.getNextEntry(rid2, &key2) != success 
-                || rid.pageNum != rid2.pageNum) {
+        if (ix_ScanIterator2.getNextEntry(rid2, &key2) != success
+            || rid.pageNum != rid2.pageNum) {
             cerr << "Wrong entries output...failure" << endl;
             goto error_close_scan;
         }
@@ -105,7 +100,7 @@ int testCase_p2(const string &indexFileName1, const string &indexFileName2,
 
         count++;
     }
-    if (count != 101)
+    if (count != 5001)
     {
         cerr << count << " - Wrong entries output...failure" << endl;
         goto error_close_scan;
@@ -118,20 +113,20 @@ int testCase_p2(const string &indexFileName1, const string &indexFileName2,
     rc = ix_ScanIterator2.close();
     assert(rc == success && "IX_ScanIterator::close() should not fail.");
 
-    
+
     // insert more entries Again
-    numOfTuples = 300;
+    numOfTuples = 30000;
     for(int i = 0; i < numOfTuples; i++)
     {
-        B[i] = 200+i;
+        B[i] = 20000+i;
     }
     random_shuffle(B, B+numOfTuples);
 
     for(int i = 0; i < numOfTuples; i++)
     {
         key = B[i];
-        rid.pageNum = i+201;
-        rid.slotNum = i+201;
+        rid.pageNum = i+20001;
+        rid.slotNum = i+20001;
 
         rc = indexManager->insertEntry(ixfileHandle1, attribute, &key, rid);
         assert(rc == success && "indexManager::insertEntry() should not fail.");
@@ -141,7 +136,7 @@ int testCase_p2(const string &indexFileName1, const string &indexFileName2,
     }
 
     // scan
-    compVal = 350;
+    compVal = 35000;
 
     rc = indexManager->scan(ixfileHandle1, attribute, NULL, &compVal, true, true, ix_ScanIterator1);
     assert(rc == success && "indexManager::scan() should not fail.");
@@ -156,14 +151,14 @@ int testCase_p2(const string &indexFileName1, const string &indexFileName2,
             cerr << "Wrong entries output...failure" << endl;
             goto error_close_scan;
         }
-        if(rid.pageNum > 200 && B[rid.pageNum-201] > 350)
+        if(rid.pageNum > 20000 && B[rid.pageNum-20001] > 35000)
         {
             cerr << "Wrong entries output...failure" << endl;
             goto error_close_scan;
         }
         count ++;
     }
-    if (count != 300)
+    if (count != 30000)
     {
         cerr << count << " - Wrong entries output...failure" << endl;
         goto error_close_scan;
@@ -193,7 +188,7 @@ int testCase_p2(const string &indexFileName1, const string &indexFileName2,
 
     return success;
 
-error_close_scan: //close scan
+    error_close_scan: //close scan
     ix_ScanIterator1.close();
     ix_ScanIterator2.close();
 

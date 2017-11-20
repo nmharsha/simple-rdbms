@@ -23,15 +23,14 @@ int testCase_p3(const string &indexFileName, const Attribute &attribute)
     char highKey[100];
 
     // create index files
-    RC rc;
-    rc = indexManager->createFile(indexFileName);
+    RC rc = indexManager->createFile(indexFileName);
     assert(rc == success && "indexManager::createFile() should not fail.");
 
     // open the index files
     rc = indexManager->openFile(indexFileName, ixfileHandle);
     assert(rc == success && "indexManager::openFile() should not fail.");
 
-//     insert entry
+    // insert entry
     for(i = 1; i <= numOfTuples; i++)
     {
         sprintf(key + 4, "%06d", i);
@@ -41,10 +40,6 @@ int testCase_p3(const string &indexFileName, const Attribute &attribute)
         rc = indexManager->insertEntry(ixfileHandle, attribute, &key, rid);
         assert(rc == success && "indexManager::insertEntry() should not fail.");
    }
-
-//    return 0;
-
-    indexManager -> printBtree(ixfileHandle, attribute);
 
     *(int*)lowKey = 6;
     sprintf(lowKey+4, "%06d", 90000);
@@ -60,9 +55,9 @@ int testCase_p3(const string &indexFileName, const Attribute &attribute)
     while(ix_ScanIterator.getNextEntry(rid, &key) != IX_EOF)
     {
         key[10] = '\0';
-//        if (count % 2000 == 0){
+        if (count % 2000 == 0){
             fprintf(stderr,"output: %s\n", key+4);
-//        }
+        }
         count++;
     }
 
@@ -80,15 +75,15 @@ int testCase_p3(const string &indexFileName, const Attribute &attribute)
     assert(rc == success && "indexManager::closeFile() should not fail.");
 
     // Destroy Index
-//    rc = indexManager->destroyFile(indexFileName);
-//    assert(rc == success && "indexManager::destroyFile() should not fail.");
+    rc = indexManager->destroyFile(indexFileName);
+    assert(rc == success && "indexManager::destroyFile() should not fail.");
 
     return success;
 
 error_close_scan: //close scan
     ix_ScanIterator.close();
     indexManager->closeFile(ixfileHandle);
-//    indexManager->destroyFile(indexFileName);
+    indexManager->destroyFile(indexFileName);
     return fail;
 }
 
@@ -100,7 +95,7 @@ int main(){
     attrShortEmpName.name = "ShortEmpName";
     attrShortEmpName.type = TypeVarChar;
     
-//    indexManager->destroyFile("private_empname_shortidx");
+    indexManager->destroyFile("private_empname_shortidx");
 
     int rcmain = testCase_p3(indexEmpNameFileName1, attrShortEmpName);
 

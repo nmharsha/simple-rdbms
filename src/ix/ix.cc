@@ -1510,9 +1510,19 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
             cout << "Low is null in scan TYPEINT" << endl;
             cout << "Setting Offset: " << offset << endl;
             ix_ScanIterator.scanOffset = offset;
-            if(offset >= lastOffset) {
-                cout << "Terminating already in scan" << endl;
-                ix_ScanIterator.end = true;
+            while(offset >= lastOffset) {
+                leafPage = getIntValueAtOffset(ix_ScanIterator.scanPageData, PAGE_SIZE - NEXT_PAGE_OFFSET);
+                if(leafPage == -1) {
+                    cout << "Terminating already in scan" << endl;
+                    ix_ScanIterator.end = true;
+                    return 0;
+                }
+                ix_ScanIterator.leafPageNum = leafPage;
+                ixfileHandle.readPage(ix_ScanIterator.leafPageNum, ix_ScanIterator.scanPageData);
+                lastOffset = getEndOfRecordOffsetFromPage(ix_ScanIterator.scanPageData);
+                offset = 0;
+//                cout << "Terminating already in scan" << endl;
+//                ix_ScanIterator.end = true;
             }
             cout << "End of iterator is: " << ix_ScanIterator.end << endl;
             return 0;
@@ -2034,12 +2044,12 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
         cout << "Raw key Varchar: " << rawKey << endl;
 
         if(highKey != NULL) {
-            int lowLen = *(int*) lowKey;
-            void* lowKeyStr = calloc(lowLen, 1);
-            memcpy(lowKeyStr, (char*)lowKey + sizeof(int), lowLen);
-            string low = string((char*)lowKeyStr);
+            int highLen = *(int*) highKey;
+            void* highKeyStr = calloc(highLen, 1);
+            memcpy(highKeyStr, (char*)highKey + sizeof(int), highLen);
+            string high = string((char*)highKeyStr);
 
-            int comparison = rawKey.compare(low);
+            int comparison = rawKey.compare(high);
             if(comparison <= 0) {
                 if(comparison == 0 && highKeyInclusive) {
                     // do nothing actually
@@ -2057,8 +2067,11 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
         cout << "passed if in varchar" << endl;
         cout << "scanoffset" << scanOffset << endl;
         cout << "Key to be set: " << rawKey << endl;
+        cout << "Key Len is: " << keyLen << endl;
         memcpy(key, &keyLen, sizeof(int));
-        memcpy(key, (char*)keyPtr + sizeof(unsigned short), keyLen);
+        memcpy((char*)key + sizeof(int) , (char*)keyPtr + sizeof(unsigned short), keyLen);
+//        cout << "actual Key to be set: " << rawKey << endl;
+
         scanOffset += sizeof(unsigned short);
         scanOffset += keyLen;
         rid.pageNum = getIntValueAtOffset(scanPageData, scanOffset);
@@ -2077,10 +2090,10 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
         leafPageNum = getIntValueAtOffset(scanPageData, PAGE_SIZE - 8);
         cout << "Next page: " << leafPageNum << endl;
 
-        if(curr > leafPageNum) {
-            cout << "abnormal behavior" << endl;
-            return -1;
-        }
+//        if(curr > leafPageNum) {
+//            cout << "abnormal behavior" << endl;
+//            return -1;
+//        }
 //		cout << "Next page: " << leafPageNum << endl;
         if((int)leafPageNum != -1){
             ixfileHandle->readPage(leafPageNum, scanPageData);
@@ -2119,7 +2132,6 @@ RC IX_ScanIterator::close()
     free(lowKey);
     free(highKey);
     free(scanPageData);
-
     return 0;
 }
 
