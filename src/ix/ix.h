@@ -93,7 +93,7 @@ public:
 
     int getEndOfRecordOffsetFromPage(void *pageData);
 
-    RC squeezeEntryIntoNonLeaf(void *pageData, const Attribute &attribute, const void *key, const PageNum pointerPageNum);
+    RC squeezeEntryIntoNonLeaf(void *pageData, const Attribute &attribute, const void *key, const PageNum pointerPageNum, bool flagx);
 
     RC splitNonLeafNode(void *pageData, void *newPageData, const void* key, const Attribute &attribute, const PageNum pointerPageNum, int &location);
 

@@ -471,7 +471,7 @@ RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribut
                         int lengthToShift = recordsEndOffset - offsetToSplit;
 
                         int len_s = *(int*)key;
-                        int len1_s = *(int*)((char*)pageData + offsetToSplit);
+                        int len1_s = *(unsigned short*)((char*)pageData + offsetToSplit);
                         char* key_s = (char*) calloc(PAGE_SIZE, 1);
                         char* key1_s = (char*) calloc(PAGE_SIZE, 1);
                         memcpy(key_s, (char*)key + sizeof(int), len_s);
@@ -540,11 +540,12 @@ RC IndexManager::splitLeafNode(void *pageData, void* newPageData, const Attribut
     return 0;
 }
 
-RC IndexManager::squeezeEntryIntoNonLeaf(void* pageData, const Attribute &attribute, const void* key, const PageNum pointerPageNum) {
+RC IndexManager::squeezeEntryIntoNonLeaf(void* pageData, const Attribute &attribute, const void* key, const PageNum pointerPageNum, bool flagx) {
     int offset = 0;
     bool flag = true;
     int endOfRecordsOffset = getEndOfRecordOffsetFromPage(pageData);
-    offset += sizeof(PageNum);
+    if(flagx)
+        offset += sizeof(PageNum);
     while(offset <= PAGE_SIZE && flag) {
 //        void* currentOffsetEntry = calloc(PAGE_SIZE, 1);
         switch(attribute.type) {
@@ -863,7 +864,7 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                     break;
             }
             if(freeSpace >= spaceNeeded) {
-                squeezeEntryIntoNonLeaf(pageData, attribute, splitKey, newChildPageNum);
+                squeezeEntryIntoNonLeaf(pageData, attribute, splitKey, newChildPageNum, true);
                 newChildPageNum = -1;
                 memset(splitKey, 0, PAGE_SIZE);
                 result = ixfileHandle.writePage(currPageNum, pageData);
@@ -871,34 +872,38 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                     cout << "Write after non split insert failed"<<endl;
                 return 0;
             } else {
-                cout << "Split of a non-leaf node triggered!" << endl;
+//                cout << "Split of a non-leaf node triggered!" << endl;
                 void* newPageData = calloc(PAGE_SIZE, 1);
                 int location;
                 splitNonLeafNode(pageData, newPageData, key, attribute, newChildPageNum, location);
                 if(location == 0) {
-                    squeezeEntryIntoNonLeaf(pageData, attribute, splitKey, newChildPageNum);
+                    squeezeEntryIntoNonLeaf(pageData, attribute, splitKey, newChildPageNum, true);
                 } else {
-                    squeezeEntryIntoNonLeaf(newPageData, attribute, splitKey, newChildPageNum);
+                    squeezeEntryIntoNonLeaf(newPageData, attribute, splitKey, newChildPageNum, false);
                 }
 
                 switch(attribute.type) {
                     case TypeInt: {
                         *(int*)splitKey = *(int*)((char*)newPageData);
-                        memmove(newPageData, (char*)newPageData + sizeof(int), sizeof(int));
-                        setFreeSpace(newPageData, getFreeSpaceFromPage(newPageData) - sizeof(int));
+                        int lengthToShift = getEndOfRecordOffsetFromPage(newPageData) - 4;
+                        memmove(newPageData, (char*)newPageData + sizeof(int), lengthToShift);
+//                        memset((char*)newPageData + lengthToShift, 0, sizeof(int));
+                        setFreeSpace(newPageData, getFreeSpaceFromPage(newPageData) + sizeof(int));
                         break;
                     }
                     case TypeReal: {
                         *(float*)splitKey = *(float*)((char*)newPageData);
-                        memmove(newPageData, (char*)newPageData + sizeof(float), sizeof(float));
-                        setFreeSpace(newPageData, getFreeSpaceFromPage(newPageData) - sizeof(float));
+                        int lengthToShift = getEndOfRecordOffsetFromPage(newPageData) - 4;
+                        memmove(newPageData, (char*)newPageData + sizeof(float), lengthToShift);
+                        setFreeSpace(newPageData, getFreeSpaceFromPage(newPageData) + sizeof(float));
                         break;
                     }
                     case TypeVarChar: {
                         int key_length = *(unsigned short*)((char*)newPageData);
+                        int lengthToShift = getEndOfRecordOffsetFromPage(newPageData) - (sizeof(unsigned short) + key_length);
                         memcpy(splitKey, (char*)newPageData + sizeof(PageNum), sizeof(unsigned short) + key_length);
-                        memcpy(newPageData, (char*)newPageData + sizeof(unsigned short) + key_length, sizeof(unsigned short) + key_length);
-                        setFreeSpace(newPageData, getFreeSpaceFromPage(newPageData) - (sizeof(unsigned short) + key_length));
+                        memmove(newPageData, (char*)newPageData + sizeof(unsigned short) + key_length, lengthToShift);
+                        setFreeSpace(newPageData, getFreeSpaceFromPage(newPageData) + (sizeof(unsigned short) + key_length));
                         break;
                     }
                     default:
@@ -924,20 +929,20 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                     int sizeOfInternalKey;
                     switch(attribute.type) {
                         case TypeInt: {
-                            *(int*)((char*)newRootNode + sizeof(int)) = *(int*)newPageData;
+                            *(int*)((char*)newRootNode + sizeof(int)) = *(int*)splitKey;
                             sizeOfInternalKey = 4;
                             *(PageNum *)((char*)newRootNode + sizeof(PageNum) + sizeof(int)) = newlyAddedPageNum;
                             break;
                         }
                         case TypeReal: {
-                            *(float*)((char*)newRootNode + sizeof(PageNum)) = *(float*)newPageData;
+                            *(float*)((char*)newRootNode + sizeof(PageNum)) = *(float*)splitKey;
                             sizeOfInternalKey = 4;
                             *(int*)((char*)newRootNode + sizeof(PageNum) + sizeof(float)) = newlyAddedPageNum;
                             break;
                         }
                         case TypeVarChar: {
-                            int varCharLength = *(unsigned short*)newPageData;
-                            memcpy((char*)newRootNode + sizeof(PageNum), newPageData, sizeof(unsigned short) + varCharLength);
+                            int varCharLength = *(unsigned short*)splitKey;
+                            memcpy((char*)newRootNode + sizeof(PageNum), splitKey, sizeof(unsigned short) + varCharLength);
                             sizeOfInternalKey = sizeof(unsigned short) + varCharLength;
                             *(int*)((char*)newRootNode + sizeof(PageNum) + sizeof(int)) = newlyAddedPageNum;
                             break;
@@ -1777,6 +1782,7 @@ RC IX_ScanIterator::close()
 	free(lowKey);
 	free(highKey);
 	free(scanPageData);
+
     return 0;
 }
 
