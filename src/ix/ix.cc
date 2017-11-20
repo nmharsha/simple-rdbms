@@ -1053,7 +1053,7 @@ RC IndexManager::insertIntoTree(IXFileHandle &ixfileHandle, PageNum currPageNum,
                         int varCharLength = *(unsigned short*)splitKey;
                         memcpy((char*)newRootNode + sizeof(PageNum), splitKey, sizeof(unsigned short) + varCharLength);
                         sizeOfInternalKey = sizeof(unsigned short) + varCharLength;
-                        *(int*)((char*)newRootNode + sizeof(PageNum) + sizeof(int)) = newlyAddedPageNum;
+                        *(int*)((char*)newRootNode + sizeof(PageNum) + sizeof(unsigned short) + varCharLength) = newlyAddedPageNum;
                         break;
                     }
                     default:

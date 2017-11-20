@@ -26,7 +26,7 @@ int testCase_11(const string &indexFileName, const Attribute &attribute){
     unsigned inRecordNum = 0;
     unsigned outRecordNum = 0;
     unsigned numOfTuples = 1000 * 1000;
-    numOfTuples = 2;
+    numOfTuples = 10;
 
     // create index file
 //    RC rc;
