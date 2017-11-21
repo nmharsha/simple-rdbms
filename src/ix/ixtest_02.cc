@@ -173,25 +173,25 @@ int testCase_2(const string &indexFileName, const Attribute &attribute)
 
     cerr << endl << "Before Insert for simple int - R W A: " << readPageCount << " " <<  writePageCount << " " << appendPageCount << endl;
 
-//    for(int i=0;i<350;i++) {
-//        rid.pageNum = i;
-//        rid.slotNum = i+1;
-//        key = i+1;
-//        rc = indexManager->insertEntry(ixfileHandle, attribute, &key, rid);
-//        assert(rc == success && "indexManager::insertEntry() should not fail.");
-//    }
+    for(int i=0;i<2;i++) {
+        rid.pageNum = i;
+        rid.slotNum = i+1;
+        key = 2;
+        rc = indexManager->insertEntry(ixfileHandle, attribute, &key, rid);
+        assert(rc == success && "indexManager::insertEntry() should not fail.");
+    }
 
     // insert entry
-    rc = indexManager->insertEntry(ixfileHandle, attribute, &key, rid);
-    assert(rc == success && "indexManager::insertEntry() should not fail.");
-    key++;
-
-    rc = indexManager->insertEntry(ixfileHandle, attribute, &key2, rid2);
-    assert(rc == success && "indexManager::insertEntry() should not fail.");
-    key2++;
-
-    rc = indexManager->insertEntry(ixfileHandle, attribute, &key, rid);
-    assert(rc == success && "indexManager::insertEntry() should not fail.");
+//    rc = indexManager->insertEntry(ixfileHandle, attribute, &key, rid);
+//    assert(rc == success && "indexManager::insertEntry() should not fail.");
+//    key++;
+//
+//    rc = indexManager->insertEntry(ixfileHandle, attribute, &key2, rid2);
+//    assert(rc == success && "indexManager::insertEntry() should not fail.");
+//    key2++;
+//
+//    rc = indexManager->insertEntry(ixfileHandle, attribute, &key, rid);
+//    assert(rc == success && "indexManager::insertEntry() should not fail.");
 
 //    rc = indexManager->insertEntry(ixfileHandle, attribute, &key2, rid2);
 //    assert(rc == success && "indexManager::insertEntry() should not fail.");
@@ -273,8 +273,8 @@ RC test_basicIntInsertion() {
 
     cout << "And now------\n\n";
 
-    rc = indexManager->insertEntry(ixfileHandle, attrAge, &key2, rid2);
-    assert(rc == success && "indexManager::insertEntry() custom should not fail.");
+//    rc = indexManager->insertEntry(ixfileHandle, attrAge, &key2, rid2);
+//    assert(rc == success && "indexManager::insertEntry() custom should not fail.");
 
     indexManager->printBtree(ixfileHandle, attrAge);
 

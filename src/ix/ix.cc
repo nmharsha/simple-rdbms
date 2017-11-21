@@ -11,6 +11,7 @@
 #include <tuple>
 #include <utility>
 #include <string>
+#include <set>
 
 #include "../rbf/pfm.h"
 #include "../rbf/rbfm.h"
@@ -1259,47 +1260,91 @@ void IndexManager::printBTreeRecursively(IXFileHandle &ixfileHandle, const Attri
         int offset = 0;
 //        typedef std::map<string, vector<tuple<int, int> > > keysMap;
 
-        typedef std::vector<tuple<int, int> >  ridList;
+        typedef std::vector<RID>  ridList;
         typedef std::map<string, ridList> keysMap;
+        typedef std::set<string> keys;
         keysMap kMap;
+        keys k;
 
         switch(attribute.type) {
             case TypeInt: {
+                int oldKey = *(int*)((char*)pageData + offset);
                 while(offset < endIndex) {
-                    if(offset > 0)
-                       cout << ",";
+//                    if(offset > 0)
+//                       cout << ",";
                     int key = *(int*)((char*)pageData + offset);
                     offset += sizeof(int);
                     RID rid = *(RID*)((char*)pageData + offset);
                     offset += sizeof(RID);
-                    cout << "\"" + to_string(key) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")]\"");
+                    if(offset == 12) {
+                        cout << "\"" + to_string(key) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
+                    } else {
+                        if(oldKey == key) {
+                            cout << ",(" << to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");
+                        } else {
+                            cout << "]\"";
+                            cout << "\"" + to_string(key) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
+                            oldKey = key;
+                        }
+
+                    }
+//                    k.insert(to_string(key));
 //                    keysMap::iterator it = kMap.find(to_string(key));
 //                    if(it != kMap.end()) {
-//                        kMap[to_string(key)].push_back(tuple<int, int>(rid.pageNum, rid.slotNum));
+//                        kMap[to_string(key)].push_back(rid);
+////                        kMap[to_string(key)].push_back(rid);
 //                    } else {
 //                        ridList newList;
-//                        newList.push_back(tuple<int, int>(rid.pageNum, rid.slotNum));
+//                        newList.push_back(rid);
 //                        kMap[to_string(key)] = newList;
 //                    }
                 }
+                cout << string("]\"");
+//                for(keys::iterator it = k.begin(); it != k.end(); ++it) {
+//                    cout << "\"" + *it + string(":[(");
+//                    for(ridList::iterator itt = kMap[*it].begin();itt != kMap[*it].end();++itt) {
+////                        cout << get<0>(*itt);
+//                    }
+//                }
+
                 break;
             }
             case TypeReal: {
+                float oldKey = *(float*)((char*)pageData + offset);
                 while(offset < endIndex) {
-                    if(offset > 0)
-                        cout << ",";
+//                    if(offset > 0)
+//                        cout << ",";
                     float key = *(float*)((char*)pageData + offset);
                     offset += sizeof(float);
                     RID rid = *(RID*)((char*)pageData + offset);
                     offset += sizeof(RID);
-                    cout << "\"" << key << string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")]\"");
+                    if(offset == 12) {
+                        cout << "\"" + to_string(key) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
+                    } else {
+                        if(oldKey == key) {
+                            cout << ",(" << to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");
+                        } else {
+                            cout << "]\"";
+                            cout << "\"" + to_string(key) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
+                            oldKey = key;
+                        }
+
+                    }
+//                    cout << "\"" << key << string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")]\"");
                 }
+                cout << string("]\"");
                 break;
             }
             case TypeVarChar: {
+                unsigned short varCharLength = *(unsigned short*)((char*)pageData + offset);
+                offset+= sizeof(unsigned short);
+                char* varCharData = (char*) calloc(PAGE_SIZE, 1);
+                memcpy(varCharData, (char*)pageData + offset, varCharLength);
+                string oldKey = string(varCharData);
+                bool begin = true;
                 while(offset < endIndex) {
-                    if(offset > 0)
-                        cout << ",";
+//                    if(offset > 0)
+//                        cout << ",";
                     unsigned short varCharLength = *(unsigned short*)((char*)pageData + offset);
                     offset+= sizeof(unsigned short);
                     char* varCharData = (char*) calloc(PAGE_SIZE, 1);
@@ -1308,9 +1353,23 @@ void IndexManager::printBTreeRecursively(IXFileHandle &ixfileHandle, const Attri
                     offset += varCharLength;
                     RID rid = *(RID*)((char*)pageData + offset);
                     offset += sizeof(RID);
-                    cout << string("\"") + varCharData + ":[(" + to_string(rid.pageNum) + "," + to_string(rid.slotNum) + ")]\"";
+                    if(begin) {
+                        cout << string("\"") + varCharData + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
+                        begin = false;
+                    } else {
+                        if(oldKey == string(varCharData)) {
+                            cout << ",(" << to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");
+                        } else {
+                            cout << "]\"";
+                            cout << string("\"") + varCharData + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
+                            oldKey = string(varCharData);
+                        }
+
+                    }
+//                    cout << string("\"") + varCharData + ":[(" + to_string(rid.pageNum) + "," + to_string(rid.slotNum) + ")]\"";
                     free(varCharData);
                 }
+                cout << string("]\"");
                 break;
             }
             default:
