@@ -1347,21 +1347,22 @@ void IndexManager::printBTreeRecursively(IXFileHandle &ixfileHandle, const Attri
 //                        cout << ",";
                     unsigned short varCharLength = *(unsigned short*)((char*)pageData + offset);
                     offset+= sizeof(unsigned short);
-                    char* varCharData = (char*) calloc(PAGE_SIZE, 1);
+                    char* varCharData = (char*) calloc(PAGE_SIZE +1, 1);
                     memcpy(varCharData, (char*)pageData + offset, varCharLength);
+                    *(varCharData + varCharLength) = 0;
 //                    if (debug10) cout << "\nWhile printing varchar lengths are: " << varCharLength << endl;
                     offset += varCharLength;
                     RID rid = *(RID*)((char*)pageData + offset);
                     offset += sizeof(RID);
                     if(begin) {
-                        cout << string("\"") + varCharData + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
+                        cout << string("\"") + string(varCharData) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
                         begin = false;
                     } else {
                         if(oldKey == string(varCharData)) {
                             cout << ",(" << to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");
                         } else {
                             cout << "]\"";
-                            cout << string("\"") + varCharData + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
+                            cout << string("\"") + string(varCharData) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
                             oldKey = string(varCharData);
                         }
 
@@ -1462,6 +1463,7 @@ void IndexManager::printBTreeRecursively(IXFileHandle &ixfileHandle, const Attri
         cout << endl;
         cout << "]" << endl << "}" << endl;
     }
+    free(pageData);
 }
 
 void IndexManager::printBtree(IXFileHandle &ixfileHandle, const Attribute &attribute) const {
