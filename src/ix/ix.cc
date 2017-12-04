@@ -2,16 +2,13 @@
 #include "ix.h"
 
 #include <stdlib.h>
-#include <sys/_types/_size_t.h>
 #include <sys/stat.h>
-#include <__tuple>
 #include <cstring>
 #include <iostream>
 #include <stack>
 #include <tuple>
 #include <utility>
 #include <string>
-#include <set>
 
 #include "../rbf/pfm.h"
 #include "../rbf/rbfm.h"
@@ -1260,117 +1257,59 @@ void IndexManager::printBTreeRecursively(IXFileHandle &ixfileHandle, const Attri
         int offset = 0;
 //        typedef std::map<string, vector<tuple<int, int> > > keysMap;
 
-        typedef std::vector<RID>  ridList;
+        typedef std::vector<tuple<int, int> >  ridList;
         typedef std::map<string, ridList> keysMap;
-        typedef std::set<string> keys;
         keysMap kMap;
-        keys k;
 
         switch(attribute.type) {
             case TypeInt: {
-                int oldKey = *(int*)((char*)pageData + offset);
                 while(offset < endIndex) {
-//                    if(offset > 0)
-//                       cout << ",";
+                    if(offset > 0)
+                       cout << ",";
                     int key = *(int*)((char*)pageData + offset);
                     offset += sizeof(int);
                     RID rid = *(RID*)((char*)pageData + offset);
                     offset += sizeof(RID);
-                    if(offset == 12) {
-                        cout << "\"" + to_string(key) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
-                    } else {
-                        if(oldKey == key) {
-                            cout << ",(" << to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");
-                        } else {
-                            cout << "]\"";
-                            cout << "\"" + to_string(key) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
-                            oldKey = key;
-                        }
-
-                    }
-//                    k.insert(to_string(key));
+                    cout << "\"" + to_string(key) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")]\"");
 //                    keysMap::iterator it = kMap.find(to_string(key));
 //                    if(it != kMap.end()) {
-//                        kMap[to_string(key)].push_back(rid);
-////                        kMap[to_string(key)].push_back(rid);
+//                        kMap[to_string(key)].push_back(tuple<int, int>(rid.pageNum, rid.slotNum));
 //                    } else {
 //                        ridList newList;
-//                        newList.push_back(rid);
+//                        newList.push_back(tuple<int, int>(rid.pageNum, rid.slotNum));
 //                        kMap[to_string(key)] = newList;
 //                    }
                 }
-                cout << string("]\"");
-//                for(keys::iterator it = k.begin(); it != k.end(); ++it) {
-//                    cout << "\"" + *it + string(":[(");
-//                    for(ridList::iterator itt = kMap[*it].begin();itt != kMap[*it].end();++itt) {
-////                        cout << get<0>(*itt);
-//                    }
-//                }
-
                 break;
             }
             case TypeReal: {
-                float oldKey = *(float*)((char*)pageData + offset);
                 while(offset < endIndex) {
-//                    if(offset > 0)
-//                        cout << ",";
+                    if(offset > 0)
+                        cout << ",";
                     float key = *(float*)((char*)pageData + offset);
                     offset += sizeof(float);
                     RID rid = *(RID*)((char*)pageData + offset);
                     offset += sizeof(RID);
-                    if(offset == 12) {
-                        cout << "\"" + to_string(key) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
-                    } else {
-                        if(oldKey == key) {
-                            cout << ",(" << to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");
-                        } else {
-                            cout << "]\"";
-                            cout << "\"" + to_string(key) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
-                            oldKey = key;
-                        }
-
-                    }
-//                    cout << "\"" << key << string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")]\"");
+                    cout << "\"" << key << string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")]\"");
                 }
-                cout << string("]\"");
                 break;
             }
             case TypeVarChar: {
-                unsigned short varCharLength = *(unsigned short*)((char*)pageData + offset);
-                offset+= sizeof(unsigned short);
-                char* varCharData = (char*) calloc(PAGE_SIZE, 1);
-                memcpy(varCharData, (char*)pageData + offset, varCharLength);
-                string oldKey = string(varCharData);
-                bool begin = true;
                 while(offset < endIndex) {
-//                    if(offset > 0)
-//                        cout << ",";
+                    if(offset > 0)
+                        cout << ",";
                     unsigned short varCharLength = *(unsigned short*)((char*)pageData + offset);
                     offset+= sizeof(unsigned short);
-                    char* varCharData = (char*) calloc(PAGE_SIZE +1, 1);
+                    char* varCharData = (char*) calloc(PAGE_SIZE, 1);
                     memcpy(varCharData, (char*)pageData + offset, varCharLength);
                     *(varCharData + varCharLength) = 0;
 //                    if (debug10) cout << "\nWhile printing varchar lengths are: " << varCharLength << endl;
                     offset += varCharLength;
                     RID rid = *(RID*)((char*)pageData + offset);
                     offset += sizeof(RID);
-                    if(begin) {
-                        cout << string("\"") + string(varCharData) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
-                        begin = false;
-                    } else {
-                        if(oldKey == string(varCharData)) {
-                            cout << ",(" << to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");
-                        } else {
-                            cout << "]\"";
-                            cout << string("\"") + string(varCharData) + string(":[(") + to_string(rid.pageNum) + string(",") + to_string(rid.slotNum) + string(")");// + string(")]\"");
-                            oldKey = string(varCharData);
-                        }
-
-                    }
-//                    cout << string("\"") + varCharData + ":[(" + to_string(rid.pageNum) + "," + to_string(rid.slotNum) + ")]\"";
+                    cout << string("\"") + varCharData + ":[(" + to_string(rid.pageNum) + "," + to_string(rid.slotNum) + ")]\"";
                     free(varCharData);
                 }
-                cout << string("]\"");
                 break;
             }
             default:
@@ -1430,10 +1369,12 @@ void IndexManager::printBTreeRecursively(IXFileHandle &ixfileHandle, const Attri
                         cout << ",";
                     }
                     offset += sizeof(unsigned short);
-                    void *key = calloc(length, 1);
+                    void *key = calloc(length+1, 1);
                     memcpy(key, (char*)pageData + offset + sizeof(unsigned short),length);
+                    *((char*)key + length) = 0;
                     cout <<"\"" << (char *) key << "\"";
                     offset += length;
+                    free(key);
                 }
                 toggle = 0;
             }
