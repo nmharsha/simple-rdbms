@@ -434,6 +434,8 @@ RC RelationManager::getAttributes(const string &tableName, vector<Attribute> &at
     return 0;
 }
 
+//RC RelationManager::getAttributeFromTuple()
+
 RC RelationManager::insertTuple(const string &tableName, const void *data, RID &rid)
 {
     RecordBasedFileManager* rbfm = RecordBasedFileManager::instance();
@@ -464,6 +466,22 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
 
     result = rbfm -> insertRecord(fileHandle, attributes, data, rid);
     rbfm -> closeFile(fileHandle);
+
+    IndexManager* indexManager = IndexManager::instance();
+    for(map<string, PageNum>::iterator it = indexManager->indexRootNodeMap.begin(); it!=indexManager->indexRootNodeMap.end(); ++it) {
+        string indexFileName = it->first;
+//        char* fileNameInd = strtok(indexFileName, "_");
+//        cout << "Column index file name is: " << fileNameInd;
+//        if(string(fileNameInd) == fileName) {
+//            cout << "Equals successful" << endl;
+//            IXFileHandle ixFileHandle;
+//            result = indexManager -> openFile(indexFileName, ixFileHandle);
+//            if(result == -1) {
+//                cout << "Opening index file failed in insert tuple" << endl;
+//            }
+//            indexManager -> insertEntry(ixFileHandle, );
+//        }
+    }
 
     return result;
 }
