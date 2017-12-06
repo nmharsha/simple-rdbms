@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "../rbf/rbfm.h"
+#include "../ix/ix.h"
 
 using namespace std;
 
@@ -21,8 +22,11 @@ using namespace std;
 
 class RM_IndexScanIterator {
 public:
-    RM_IndexScanIterator();  	// Constructor
-    ~RM_IndexScanIterator(); 	// Destructor
+    RM_IndexScanIterator() {};  	// Constructor
+    ~RM_IndexScanIterator() {}; 	// Destructor
+
+    IX_ScanIterator ix_scanIterator;
+    IXFileHandle ixFileHandle;
 
     // "key" follows the same format as in IndexManager::insertEntry()
     RC getNextEntry(RID &rid, void *key);  	// Get next matching entry
@@ -126,6 +130,9 @@ protected:
 
     string getTableFileName(const string tableName);
 
+    Attribute getAttributeFromName(vector<Attribute> &attributes, string attributeName);
+
+    RC getAttributeFromRecord(const void *data, void *attributeData, string attributeName, vector<Attribute> attributes);
 };
 
 #endif

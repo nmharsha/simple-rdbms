@@ -115,6 +115,30 @@ typedef enum {
     NON_LEAF
 } PAGE_TYPE;
 
+class IXFileHandle: public FileHandle {
+public:
+
+    // variables to keep counter for each operation
+    unsigned ixReadPageCounter;
+    unsigned ixWritePageCounter;
+    unsigned ixAppendPageCounter;
+
+    string fileName;
+
+//    FileHandle fileHandle;
+
+    // Constructor
+    IXFileHandle();
+
+    // Destructor
+    ~IXFileHandle();
+
+    // Put the current counter values of associated PF FileHandles into variables
+    RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
+    int getPersistedAppendCounter();
+
+};
+
 
 class IX_ScanIterator {
 public:
@@ -147,32 +171,6 @@ public:
     float getRealValueAtOffset(void *pageRecord, int offset);
     int getIntValueAtOffset(void *pageRecord, int offset);
     int findLeaf(IndexManager &indexManager, void* pageData, PageNum currPageNum);
-};
-
-
-
-class IXFileHandle: public FileHandle {
-public:
-
-    // variables to keep counter for each operation
-    unsigned ixReadPageCounter;
-    unsigned ixWritePageCounter;
-    unsigned ixAppendPageCounter;
-
-    string fileName;
-
-//    FileHandle fileHandle;
-
-    // Constructor
-    IXFileHandle();
-
-    // Destructor
-    ~IXFileHandle();
-
-    // Put the current counter values of associated PF FileHandles into variables
-    RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
-    int getPersistedAppendCounter();
-
 };
 
 #endif
