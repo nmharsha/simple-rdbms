@@ -27,17 +27,20 @@ RC testCase_6() {
 	float valueC = 0.0;
 	int valueD = 0;
 
+	cout << "check 1" << endl;
 	// Create Projector
 	Project *project = new Project(ts, attrNames);
+	cout << "check 2" << endl;
 
 	// Go over the data through iterator
 	void *data = malloc(bufSize);
 	bool nullBit = false;
-	
+	cout << "check 3" << endl;
+
 	while (project->getNextTuple(data) != QE_EOF) {
 		int offset = 0;
-
-		// Is an attribute C NULL?
+		cout << "in the while " << endl;
+ 		// Is an attribute C NULL?
 		nullBit = *(unsigned char *)((char *)data) & (1 << 7);
 		if (nullBit) {
 			cout << endl << "***** A returned value is not correct. *****" << endl;

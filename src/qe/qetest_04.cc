@@ -103,7 +103,7 @@ int main() {
 		cerr << "***** [FAIL] QE Test Case 4 failed. *****" << endl;
 		return fail;
 	}
-
+//	cout << "next step" << endl;
 	if (populateLeftVarCharTable() != success) {
 		cerr << "***** [FAIL] QE Test Case 4 failed. *****" << endl;
 		return fail;
