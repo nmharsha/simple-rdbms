@@ -22,7 +22,7 @@ using namespace std;
 
 class RM_IndexScanIterator {
 public:
-    RM_IndexScanIterator() {};  	// Constructor
+    RM_IndexScanIterator();  	// Constructor
     ~RM_IndexScanIterator() {}; 	// Destructor
 
     IX_ScanIterator ix_scanIterator;
