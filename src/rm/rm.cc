@@ -193,18 +193,6 @@ RC RelationManager::destroyIndex(const string &tableName, const string &attribut
     return indexManager->destroyFile(tableName + "_" + attributeName);
 }
 
-RC RelationManager::indexScan(const string &tableName,
-                const string &attributeName,
-                const void *lowKey,
-                const void *highKey,
-                bool lowKeyInclusive,
-                bool highKeyInclusive,
-                RM_IndexScanIterator &rm_IndexScanIterator
-   ) {
-	return -1;
-}
-
-
 RC RelationManager::createCatalog()
 {
     rbfm -> createFile(TABLES_TABLE_FILE_NAME);
@@ -745,6 +733,7 @@ RC RelationManager::scan(const string &tableName,
     return 0;
 }
 
+
 RC RelationManager::indexScan(const string &tableName,
              const string &attributeName,
              const void *lowKey,
@@ -767,6 +756,9 @@ RC RM_IndexScanIterator::getNextEntry(RID &rid, void *key) {
     return ix_scanIterator.getNextEntry(rid, key);
 }
 
+RM_IndexScanIterator::RM_IndexScanIterator(){
+
+}
 RC RM_IndexScanIterator::close() {
     IndexManager* indexManager = IndexManager::instance();
     indexManager -> closeFile(ixFileHandle);
