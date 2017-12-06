@@ -74,6 +74,7 @@ public:
     FileHandle* fileHandle;
 
     RID currentReadRid;
+    void* bufferPage;
 
     // Never keep the results in the memory. When getNextRecord() is called,
     // a satisfying record needs to be fetched from the file.
@@ -144,6 +145,10 @@ IMPORTANT, PLEASE READ: All methods below this comment (other than the construct
             RBFM_ScanIterator &rbfm_ScanIterator);
 
     RC getDirectorySlotForRid(FileHandle* fileHandle, RID rid, void* directorySlot);
+    RC getDirectorySlotForRid(void *pageData, RID rid, void *directorySlot);
+    RC readAttributeFromBuffer(FileHandle &fileHandle, const vector<Attribute> &recordDescriptor, const RID &rid,
+                               const string &attributeName, void *data, void *pageData);
+    int getTotalSlotsOnPage(void * pageData);
 
 public:
     int getTotalSlotsOnPage(int pageNum, FileHandle &fileHandle);
