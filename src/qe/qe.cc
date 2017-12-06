@@ -13,12 +13,16 @@ Filter::Filter(Iterator* input, const Condition &condition) {
 	//Find the place in the descriptor
 	if(filterAttrs.size() != 0) {
 		for(int i = 0; i < filterAttrs.size(); i++) {
-			if(filterAttrs[i].name.compare(filterCondition.lhsAttr)) {
+//			cout << "at i: " << i << endl;
+//			cout << filterAttrs[i].name << endl;
+//			cout << filterCondition.lhsAttr << endl;
+			if(filterAttrs[i].name.compare(filterCondition.lhsAttr) == 0) {
 				currPos = i;
 				break;
 			}
 		}
 	}
+	cout << "Constructor called" << endl;
 }
 
 void Filter::getAttributes(vector<Attribute> &attrs) const {
@@ -36,6 +40,8 @@ RC Filter::getNextTuple(void *data){
 		status = filterInput->getNextTuple(data);
 		cout << "Read status: " << status << endl;
 		if(status != 0) {
+//			cout << "Read status inv: " << status << endl;
+
 			return QE_EOF;
 		}
 
@@ -49,6 +55,7 @@ RC Filter::getNextTuple(void *data){
 bool Filter::check(void *data) {
 
 	if(filterCondition.rhsValue.type == TypeInt) {
+//		cout << "Its int in check" << endl;
 		int compVal = *(int *) filterCondition.rhsValue.data;
 		int orig = *(int *) data;
 		switch(filterCondition.op) {
@@ -139,6 +146,7 @@ bool Filter::check(void *data) {
 
 // gets the attribute value from the data - in the form of returnedData
 void Filter::getAttributeValue(void* data, void* returnedData, vector<Attribute> attrs, unsigned int currPos, AttrType type) {
+//	cout << "Enterneig" << endl;
 	int offset = 0;
     int nullFieldsIndicatorActualSize = ceil((double) attrs.size() / CHAR_BIT);
     offset += nullFieldsIndicatorActualSize;
@@ -153,9 +161,10 @@ void Filter::getAttributeValue(void* data, void* returnedData, vector<Attribute>
     }
     //get to the current attribute
     int i = 0;
-    int j = 0;
-	while(i < currPos && j < attrs.size()){
-		if(bitVector[j] == 0){
+//    int j = 0;
+//    cout << "Curr pos: " << currPos << endl;
+	while(i < currPos){
+		if(bitVector[i] == 0){
 			if(attrs[i].type == TypeInt || attrs[i].type == TypeReal) {
 				offset += sizeof(int);
 			} else {
@@ -163,23 +172,41 @@ void Filter::getAttributeValue(void* data, void* returnedData, vector<Attribute>
 				offset += sizeof(int);
 				offset += len;
 			}
-			i++;
 		}
-		j++;
+		i++;
 	}
+//	cout << "I is at: " << i << endl;
+
+//	while(i < currPos && j < attrs.size()){
+//		if(bitVector[j] == 0){
+//			if(attrs[i].type == TypeInt || attrs[i].type == TypeReal) {
+//				offset += sizeof(int);
+//			} else {
+//				int len = *(int *)((char *) data + offset);
+//				offset += sizeof(int);
+//				offset += len;
+//			}
+//			i++;
+//		}
+//		j++;
+//	}
 	// hopefully i stops before j does.
 	// just for debug purposes - check if i terminated first, then legal
 
 	int size = 0;
 	if(type == TypeInt || type == TypeReal) {
+//		cout << "Int or float" << endl;
 		size = sizeof(int);
 	} else {
+//		cout << "Varchar" << endl;
+
 		int len = *(int *)((char *) data + offset);
 		size = sizeof(int);
 		size += len;
 	}
-	cout << "Returning: " << (char *)data + offset << endl;
 	memcpy(returnedData, (char *)data + offset, size);
+	cout << "Returning: " << *(float *)returnedData << endl;
+
 }
 
 // gets the attribute values for Projection from the data - in the form of returnedData

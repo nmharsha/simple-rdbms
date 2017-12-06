@@ -1449,13 +1449,16 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
                       bool        	highKeyInclusive,
                       IX_ScanIterator &ix_ScanIterator)
 {
+	cout << "index 1" << endl;
     if (debug10) cout << "Inside Scan..." << endl;
     if(!fileExists(ixfileHandle.fileName)){
         return -1;
     }
+    cout << "index 2" << endl;
     ix_ScanIterator.end = false;
     ix_ScanIterator.ixfileHandle = &ixfileHandle;
     ix_ScanIterator.attribute = attribute;
+    cout << "index 1" << endl;
     if(attribute.type == TypeInt || attribute.type == TypeReal) {
         if(lowKey == NULL) {
             ix_ScanIterator.lowKey = NULL;
@@ -1491,11 +1494,16 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
     ix_ScanIterator.scanPageData = calloc(PAGE_SIZE, 1);
 
     PageNum root = indexRootNodeMap[ixfileHandle.fileName];
-    ixfileHandle.readPage(root, ix_ScanIterator.scanPageData);
+    cout << "index 3:::" << endl;
+    cout << ixfileHandle.readPage(root, ix_ScanIterator.scanPageData) << endl;
+    cout << "index 4" << endl;
+
     if (debug10) cout << "root page: " << root << endl;
     if (debug10) cout << "read the page" << endl;
 
     int leafPage = findLeaf(ixfileHandle, ix_ScanIterator.scanPageData, root, attribute, ix_ScanIterator.lowKey);
+    cout << "index 5" << endl;
+
     if(leafPage == -1) {
         if (debug10) cout << "weirdddd" << endl;
         // doesnt exist, return something or fill up the data members of ixscan
@@ -1503,6 +1511,7 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
     ix_ScanIterator.leafPageNum = leafPage;
     if (debug10) cout << "Leaf Page: " << leafPage << endl;
 
+    cout << "index 6" << endl;
 
     if(attribute.type == TypeInt) {
         // Scan through the leaf to find the first one

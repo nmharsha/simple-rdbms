@@ -132,13 +132,19 @@ class IndexScan : public Iterator
         	this->tableName = tableName;
         	this->attrName = attrName;
 
+        	cout << "check 1" << endl;
 
             // Get Attributes from RM
             rm.getAttributes(tableName, attrs);
 
             // Call rm indexScan to get iterator
+        	cout << "check 2" << endl;
+
             iter = new RM_IndexScanIterator();
+        	cout << "check 3" << endl;
+
             rm.indexScan(tableName, attrName, NULL, NULL, true, true, *iter);
+        	cout << "check 4" << endl;
 
             // Set alias
             if(alias) this->tableName = alias;
