@@ -201,6 +201,15 @@ class Filter : public Iterator {
         RC getNextTuple(void *data) {return QE_EOF;};
         // For attribute in vector<Attribute>, name it as rel.attr
         void getAttributes(vector<Attribute> &attrs) const{};
+
+
+        RC check(void *data);
+
+        Iterator* filterInput;
+        Condition* filterCondition;
+        vector<Attribute> filterAttrs;
+        unsigned currPos;
+
 };
 
 

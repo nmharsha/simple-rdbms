@@ -2271,7 +2271,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
                 int iteratorPosition = it - attributeNames.begin();
                 if(attributeNullDescriptor > 0) {
                     char nullDescByte = *((char*)data + ((iteratorPosition+1)/ sizeof(char)));
-                    nullDescByte |= (1 << ((iteratorPosition+1)% sizeof(char)));
+                    nullDescByte |= (1 << (8-((iteratorPosition+1)% sizeof(char))));
                     memcpy((char*)data + ((iteratorPosition+1)/ sizeof(char)), &nullDescByte, sizeof(char));
                 } else {
                     switch(a.type) {
@@ -2436,7 +2436,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
                 int iteratorPosition = it - attributeNames.begin();
                 if(attributeNullDescriptor > 0) {
                     char nullDescByte = *((char*)data + ((iteratorPosition+1)/ sizeof(char)));
-                    nullDescByte |= (1 << ((iteratorPosition+1)% sizeof(char)));
+                    nullDescByte |= (1 << (8- ((iteratorPosition+1)% sizeof(char))));
                     memcpy((char*)data + ((iteratorPosition+1)/ sizeof(char)), &nullDescByte, sizeof(char));
                 } else {
                     switch(a.type) {
