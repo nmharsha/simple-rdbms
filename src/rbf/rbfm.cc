@@ -2092,9 +2092,11 @@ RC RecordBasedFileManager::readAttributeFromBuffer(FileHandle &fileHandle, const
 //        free(pageRecord);
 //        return -1;
 //    }
-    memcpy(pageRecord, pageData, sizeof(PAGE_SIZE));
+    memcpy(pageRecord, pageData, PAGE_SIZE);
+//    cout << "After scan int offset inside read ATTRIBUTE: " << getIntValueAtOffset(pageData, 4088) << endl;
     int totalSlots = getIntValueAtOffset(pageRecord, PAGE_SIZE - 8);
     if(slotNum <= 0 || slotNum > totalSlots) {
+        cout << "Inside here: " << slotNum <<" "<<totalSlots << endl;
         free(pageRecord);
         return -1;
     }
@@ -2323,7 +2325,11 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const vector<Attribute> 
     rbfm_ScanIterator.currentReadRid.slotNum = 0;
     rbfm_ScanIterator.fileHandle = &fileHandle;
     rbfm_ScanIterator.bufferPage = calloc(PAGE_SIZE, 1);
-    fileHandle.readPage(0, rbfm_ScanIterator.bufferPage);
+    int result = fileHandle.readPage(0, rbfm_ScanIterator.bufferPage);
+//    cout << "During scan int offset: " << getIntValueAtOffset(rbfm_ScanIterator.bufferPage, 4088) << endl;
+    if(result == -1) {
+        cout << "Read page in scan failed";
+    }
     return 0;
 }
 
@@ -2382,10 +2388,12 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
             return RBFM_EOF;
         }
 
+
 //        cout << "currentReadRid, rid: " << currentReadRid.pageNum << "," << currentReadRid.slotNum << endl;
 
 
         RecordBasedFileManager* recordBasedFileManager = RecordBasedFileManager::instance();
+//        cout << "After scan int offset: " << *(int*)((char*)bufferPage + 4088) << endl;
         void* directorySlot = malloc(12* sizeof(char));
         recordBasedFileManager->getDirectorySlotForRid(bufferPage, currentReadRid, directorySlot);
         int offset = *(int*)directorySlot;
