@@ -1,6 +1,7 @@
 #include "rm.h"
 #include "../rbf/rbfm.h"
 #include "../ix/ix.h"
+#include <cstring>
 
 int debug1 = 0;
 //int table_id = 1;
@@ -375,6 +376,40 @@ RC RelationManager::deleteTable(const string &tableName)
     if(rbfm -> destroyFile(tableName + ".tbl") != 0) {
         return -1;
     }
+
+    IndexManager* indexManager = IndexManager::instance();
+    for(map<string, PageNum>::iterator it = indexManager->indexRootNodeMap.begin(); it!=indexManager->indexRootNodeMap.end(); ++it) {
+        string indexFileName = it->first;
+//        char* c = indexFileName.c_str();
+        string next;
+        vector<string> result;
+
+        for (string::const_iterator itt = indexFileName.begin(); itt != indexFileName.end(); itt++) {
+            if(*itt == '_') {
+                if (!next.empty()) {
+                    // Add them to the result vector
+                    result.push_back(next);
+                    next.clear();
+                }
+            } else {
+                next += *itt;
+            }
+        }
+        if (!next.empty())
+            result.push_back(next);
+
+        string tableNameInd = result[0];
+        cout << "Column index file name is: " << tableNameInd << endl;
+        string attributeNameInd = result[1];
+        cout << "Column index column name is: " << attributeNameInd << endl;
+        if(tableNameInd == tableName) {
+            if(indexManager -> destroyFile(indexFileName) != 0) {
+                cout << "Destroy index failed";
+                return -1;
+            }
+        }
+    }
+
     return 0;
 }
 
@@ -445,7 +480,43 @@ RC RelationManager::getAttributes(const string &tableName, vector<Attribute> &at
     return 0;
 }
 
-//RC RelationManager::getAttributeFromTuple()
+RC RelationManager::getAttributeFromRecord(const void* data, void* attributeData, string attributeName, vector<Attribute> attributes) {
+    int offset = 0;
+    for(int i=0;i < attributes.size(); i++) {
+        int numOfNullBytes = (int)ceil((double)attributes.size()/8);
+        char nullByte = *((char*)data + i/8);
+        bool nullBitSet = (nullByte & (1<<((8-i%8-1)))) > 0;
+        cout << "Null bit set: " << nullBitSet << endl;
+        if(attributes[i].name == attributeName) {
+            if(attributes[i].type == TypeInt || attributes[i].type == TypeReal) {
+                *(char*)attributeData = 0;
+                memcpy((char*)attributeData + 1, (char*)data + offset, sizeof(int));
+            } else {
+                int varcharLen =  *(int*)((char*)data + offset);
+                *(char*)attributeData = 0;
+                memcpy((char*)attributeData + 1, (char*)data + offset, sizeof(int) + varcharLen);
+            }
+        } else {
+            if(!nullBitSet) {
+                if(attributes[i].type == TypeInt || attributes[i].type == TypeReal) {
+                    offset += sizeof(int);
+                } else {
+                    int varcharLength = *(int*)((char*)data + offset);
+                    offset += sizeof(int) + varcharLength;
+                }
+            }
+        }
+    }
+}
+Attribute RelationManager::getAttributeFromName(vector<Attribute> &attributes, string attributeName) {
+    Attribute indexedAttr;
+    for(int i=0;i<attributes.size();i++) {
+        if(attributes[i].name == attributeName) {
+            indexedAttr = attributes[i];
+        }
+    }
+    return indexedAttr;
+}
 
 RC RelationManager::insertTuple(const string &tableName, const void *data, RID &rid)
 {
@@ -481,17 +552,40 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
     IndexManager* indexManager = IndexManager::instance();
     for(map<string, PageNum>::iterator it = indexManager->indexRootNodeMap.begin(); it!=indexManager->indexRootNodeMap.end(); ++it) {
         string indexFileName = it->first;
-//        char* fileNameInd = strtok(indexFileName, "_");
-//        cout << "Column index file name is: " << fileNameInd;
-//        if(string(fileNameInd) == fileName) {
-//            cout << "Equals successful" << endl;
-//            IXFileHandle ixFileHandle;
-//            result = indexManager -> openFile(indexFileName, ixFileHandle);
-//            if(result == -1) {
-//                cout << "Opening index file failed in insert tuple" << endl;
-//            }
-//            indexManager -> insertEntry(ixFileHandle, );
-//        }
+        string next;
+        vector<string> resultSet;
+
+        for (string::const_iterator itt = indexFileName.begin(); itt != indexFileName.end(); itt++) {
+            if(*itt == '_') {
+                if (!next.empty()) {
+                    // Add them to the result vector
+                    resultSet.push_back(next);
+                    next.clear();
+                }
+            } else {
+                next += *itt;
+            }
+        }
+        if (!next.empty())
+            resultSet.push_back(next);
+
+        string tableNameInd = resultSet[0];
+        cout << "Column index file name is: " << tableNameInd << endl;
+        string attributeNameInd = resultSet[1];
+        cout << "Column index column name is: " << attributeNameInd << endl;
+
+        if(tableNameInd == tableName) {
+            cout << "Equals successful" << endl;
+            IXFileHandle ixFileHandle;
+            result = indexManager -> openFile(indexFileName.c_str(), ixFileHandle);
+            if(result == -1) {
+                cout << "Opening index file failed in insert tuple" << endl;
+            }
+            void* attributeData = calloc(PAGE_SIZE, 1);
+            getAttributeFromRecord(data, attributeData, attributeNameInd, attributes);
+            indexManager -> insertEntry(ixFileHandle, getAttributeFromName(attributes, string(attributeNameInd)), attributeData, rid);
+            free(attributeData);
+        }
     }
 
     return result;
@@ -509,8 +603,50 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
     FileHandle fileHandle;
     rbfm -> openFile(fileName, fileHandle);
 
+    void* data = calloc(PAGE_SIZE, 1);
+    rbfm -> readRecord(fileHandle, attributes, rid, data);
+
     int result = rbfm -> deleteRecord(fileHandle, attributes, rid);
     rbfm -> closeFile(fileHandle);
+
+    IndexManager* indexManager = IndexManager::instance();
+    for(map<string, PageNum>::iterator it = indexManager->indexRootNodeMap.begin(); it!=indexManager->indexRootNodeMap.end(); ++it) {
+        string indexFileName = it->first;
+        string next;
+        vector<string> resultSet;
+
+        for (string::const_iterator itt = indexFileName.begin(); itt != indexFileName.end(); itt++) {
+            if(*itt == '_') {
+                if (!next.empty()) {
+                    // Add them to the result vector
+                    resultSet.push_back(next);
+                    next.clear();
+                }
+            } else {
+                next += *itt;
+            }
+        }
+        if (!next.empty())
+            resultSet.push_back(next);
+
+        string tableNameInd = resultSet[0];
+        cout << "Column index file name is: " << tableNameInd << endl;
+        string attributeNameInd = resultSet[1];
+        cout << "Column index column name is: " << attributeNameInd << endl;
+        if(tableNameInd == tableName) {
+            cout << "Equals successful" << endl;
+            IXFileHandle ixFileHandle;
+            result = indexManager -> openFile(indexFileName, ixFileHandle);
+            if(result == -1) {
+                cout << "Opening index file failed in insert tuple" << endl;
+            }
+            void* attributeData = calloc(PAGE_SIZE, 1);
+            getAttributeFromRecord(data, attributeData, attributeNameInd, attributes);
+            indexManager -> deleteEntry(ixFileHandle, getAttributeFromName(attributes, string(attributeNameInd)), attributeData, rid);
+            free(attributeData);
+        }
+    }
+    free(data);
     return result;
 }
 
@@ -607,6 +743,33 @@ RC RelationManager::scan(const string &tableName,
 //    rm_ScanIterator.rbfmScanIterator = rbfmScanIterator;
 //    rbfm -> closeFile(fileHandle);
     return 0;
+}
+
+RC RelationManager::indexScan(const string &tableName,
+             const string &attributeName,
+             const void *lowKey,
+             const void *highKey,
+             bool lowKeyInclusive,
+             bool highKeyInclusive,
+             RM_IndexScanIterator &rm_IndexScanIterator
+) {
+    IndexManager* indexManager = IndexManager::instance();
+    IX_ScanIterator ix_scanIterator;
+    vector<Attribute> attributes;
+    getAttributes(tableName, attributes);
+    indexManager -> openFile(tableName + "_" + attributeName, *ix_scanIterator.ixfileHandle);
+    indexManager -> scan(*ix_scanIterator.ixfileHandle, getAttributeFromName(attributes, attributeName), lowKey, highKey, lowKeyInclusive, highKeyInclusive, rm_IndexScanIterator.ix_scanIterator);
+
+    return 0;
+}
+
+RC RM_IndexScanIterator::getNextEntry(RID &rid, void *key) {
+    return ix_scanIterator.getNextEntry(rid, key);
+}
+
+RC RM_IndexScanIterator::close() {
+    IndexManager* indexManager = IndexManager::instance();
+    indexManager -> closeFile(ixFileHandle);
 }
 
 RC RM_ScanIterator::getNextTuple(RID &rid, void *data) {
