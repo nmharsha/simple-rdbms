@@ -1,5 +1,6 @@
 #include "rm.h"
 #include "../rbf/rbfm.h"
+#include "../ix/ix.h"
 
 int debug1 = 0;
 //int table_id = 1;
@@ -140,6 +141,55 @@ vector<Attribute> RelationManager::createColumnAttributes() {
     a.type = TypeInt;
     attributes.push_back(a);
     return attributes;
+}
+
+RC RelationManager::createIndex(const string &tableName, const string &attributeName) {
+    IndexManager* indexManager = IndexManager::instance();
+    string indexFileName = tableName + "_" + attributeName;
+    int result = indexManager -> createFile(indexFileName);
+
+    //if there are already records in the file add these to index
+    vector<Attribute> attrs;
+    getAttributes(tableName, attrs);
+    vector<string> attrNames;
+    attrNames.push_back(attributeName);
+    RM_ScanIterator rm_scanIterator;
+    this -> scan(tableName, "", NO_OP, NULL, attrNames, rm_scanIterator); //blind scan. This assumption may kick me in the ass later
+
+    RID rid;
+    void* data = calloc(PAGE_SIZE,1);
+    void* attributeData = calloc(PAGE_SIZE, 1);
+    IXFileHandle ixFileHandle;
+    result = indexManager -> openFile(indexFileName, ixFileHandle);
+    if(result != 0) {
+        cout << "Opening of the index file fails!" << endl;
+    }
+    Attribute indexedAttr;
+    for(int i=0;i<attrs.size();i++) {
+        if(attrs[i].name == attributeName) {
+            indexedAttr = attrs[i];
+        }
+    }
+//    cout << "Printing before once!" << endl;
+    while(rm_scanIterator.getNextTuple(rid, data) != RM_EOF) {
+//        cout << "Printing a couple of them!" << endl;
+        char nullByte = *(char*)data;
+        if(nullByte <= 0) {
+            indexManager -> insertEntry(ixFileHandle, indexedAttr, attributeData, rid);
+        } else {
+            cout << "Attribute to be indexed is null" << endl;
+        }
+    }
+    free(attributeData);
+    rm_scanIterator.close();
+    indexManager -> closeFile(ixFileHandle);
+    free(data);
+    return 0;
+}
+
+RC RelationManager::destroyIndex(const string &tableName, const string &attributeName) {
+    IndexManager* indexManager = IndexManager::instance();
+    return indexManager->destroyFile(tableName + "_" + attributeName);
 }
 
 
@@ -532,6 +582,11 @@ RC RelationManager::scan(const string &tableName,
 
 RC RM_ScanIterator::getNextTuple(RID &rid, void *data) {
     return rbfmScanIterator.getNextRecord(rid, data);
+}
+
+RC RM_ScanIterator::close() {
+    RecordBasedFileManager* rbfm = RecordBasedFileManager::instance();
+    rbfm -> closeFile(fileHandle);
 }
 
 // Extra credit work

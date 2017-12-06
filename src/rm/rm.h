@@ -19,6 +19,16 @@ using namespace std;
 # define TABLE_FILE_NAME "file-name"
 # define COLUMN_NAME "column-name"
 
+class RM_IndexScanIterator {
+public:
+    RM_IndexScanIterator();  	// Constructor
+    ~RM_IndexScanIterator(); 	// Destructor
+
+    // "key" follows the same format as in IndexManager::insertEntry()
+    RC getNextEntry(RID &rid, void *key);  	// Get next matching entry
+    RC close();             			// Terminate index scan
+};
+
 // RM_ScanIterator is an iteratr to go through tuples
 class RM_ScanIterator {
 public:
@@ -30,7 +40,7 @@ public:
 
     // "data" follows the same format as RelationManager::insertTuple()
     RC getNextTuple(RID &rid, void *data);
-    RC close() { return -1; };
+    RC close();
 };
 
 
@@ -76,6 +86,20 @@ public:
             const void *value,                    // used in the comparison
             const vector<string> &attributeNames, // a list of projected attributes
             RM_ScanIterator &rm_ScanIterator);
+
+    RC createIndex(const string &tableName, const string &attributeName);
+
+    RC destroyIndex(const string &tableName, const string &attributeName);
+
+    // indexScan returns an iterator to allow the caller to go through qualified entries in index
+    RC indexScan(const string &tableName,
+                 const string &attributeName,
+                 const void *lowKey,
+                 const void *highKey,
+                 bool lowKeyInclusive,
+                 bool highKeyInclusive,
+                 RM_IndexScanIterator &rm_IndexScanIterator
+    );
 
 // Extra credit work (10 points)
 public:
