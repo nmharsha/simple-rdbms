@@ -2328,7 +2328,7 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const vector<Attribute> 
     int result = fileHandle.readPage(0, rbfm_ScanIterator.bufferPage);
 //    cout << "During scan int offset: " << getIntValueAtOffset(rbfm_ScanIterator.bufferPage, 4088) << endl;
     if(result == -1) {
-        cout << "Read page in scan failed";
+        cout << "Read page in scan failed" << endl;
     }
     return 0;
 }

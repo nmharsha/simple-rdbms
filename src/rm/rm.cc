@@ -715,7 +715,7 @@ RC RelationManager::scan(const string &tableName,
                          RM_ScanIterator &rm_ScanIterator)
 {
     RecordBasedFileManager* rbfm = RecordBasedFileManager::instance();
-    RBFM_ScanIterator rbfmScanIterator;
+//    RBFM_ScanIterator rbfmScanIterator;
     int result = rbfm -> openFile(tableName + ".tbl", rm_ScanIterator.fileHandle); //TODO: remove this hack
 //    cout<<"Open file result: "<<result<<endl;
     vector<Attribute> attributes;
@@ -745,15 +745,15 @@ RC RelationManager::indexScan(const string &tableName,
 	cout << "scan check 1" << endl;
     IndexManager* indexManager = IndexManager::instance();
     cout << "scan check 2" << endl;
-    IX_ScanIterator ix_scanIterator;
+//    IX_ScanIterator ix_scanIterator;
     cout << "scan check 3" << endl;
     vector<Attribute> attributes;
     cout << "scan check 4" << endl;
     getAttributes(tableName, attributes);
     cout << "scan check 5" << endl;
-    indexManager -> openFile(tableName + "_" + attributeName, *ix_scanIterator.ixfileHandle);
+    indexManager -> openFile(tableName + "_" + attributeName, rm_IndexScanIterator.ixFileHandle);
     cout << "scan check 6" << endl;
-    indexManager -> scan(*ix_scanIterator.ixfileHandle, getAttributeFromName(attributes, attributeName), lowKey, highKey, lowKeyInclusive, highKeyInclusive, rm_IndexScanIterator.ix_scanIterator);
+    indexManager -> scan(rm_IndexScanIterator.ixFileHandle, getAttributeFromName(attributes, attributeName), lowKey, highKey, lowKeyInclusive, highKeyInclusive, rm_IndexScanIterator.ix_scanIterator);
     cout << "scan check 7" << endl;
     return 0;
 }
