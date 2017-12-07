@@ -393,6 +393,151 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
     attrNullIndicator.clear();
 }
 
+BNLJoin::createLeftBuffer() {
+	for(int i=0; i<this->numPages; i++) {
+
+	}
+}
+
+int BNLJoin::getTupleSize(void* tuple) {
+	int offset = 0;
+	int size = 0;
+	for(int i=0;i<this->leftAttributes.size();i++) {
+
+		int numOfNullBytes = (int)ceil((double)this->leftAttributes.size()/8);
+		char nullByte = *((char*)tuple + i/8);
+		bool nullBitSet = (nullByte & (1<<((8-i%8-1)))) > 0;
+
+		if(!nullBitSet) {
+			if(this->leftAttributes[i].type == TypeInt || this->leftAttributes[i].type == TypeReal) {
+				size += sizeof(int);
+				offset += sizeof(int);
+			} else {
+				int varcharLen = *(int*)((char*)tuple + offset);
+				size += sizeof(int) + varcharLen;
+				offset += sizeof(int) + varcharLen;
+			}
+		}
+	}
+
+	return size;
+}
+
+void getAttributeFromRecord(const void* data, void* attributeData, string attributeName, vector<Attribute> attributes) {
+	int offset = 0;
+	for(int i=0;i < attributes.size(); i++) {
+		int numOfNullBytes = (int)ceil((double)attributes.size()/8);
+		char nullByte = *((char*)data + i/8);
+		bool nullBitSet = (nullByte & (1<<((8-i%8-1)))) > 0;
+        cout << "Null bit set. This shouldn't happen in an index: " << nullBitSet << endl;
+		if(attributes[i].name == attributeName) {
+			if(attributes[i].type == TypeInt || attributes[i].type == TypeReal) {
+				*(char*)attributeData = 0;
+				memcpy((char*)attributeData + 1, (char*)data + offset, sizeof(int));
+			} else {
+				int varcharLen =  *(int*)((char*)data + offset);
+				*(char*)attributeData = 0;
+				memcpy((char*)attributeData + 1, (char*)data + offset, sizeof(int) + varcharLen);
+			}
+		} else {
+			if(!nullBitSet) {
+				if(attributes[i].type == TypeInt || attributes[i].type == TypeReal) {
+					offset += sizeof(int);
+				} else {
+					int varcharLength = *(int*)((char*)data + offset);
+					offset += sizeof(int) + varcharLength;
+				}
+			}
+		}
+	}
+}
+
+RC BNLJoin::fillBuffer() {
+	this->leftOffset = 0;
+	RC result;
+	void* attributeData = calloc(PAGE_SIZE, 1);
+	while(this->leftOffset <= this->numPages*PAGE_SIZE) {
+		result = this->leftInIter->getNextTuple((char*)this->leftBlockBuffer + this->leftOffset);
+		if(result == QE_EOF) {
+			return -1;
+		}
+
+		getAttributeFromRecord((char*)this->leftBlockBuffer + this->leftOffset, attributeData, this->joinAttribute.name, this->leftAttributes);
+
+		switch(this->joinAttribute.type) {
+			case TypeInt:
+				this->intMap.insert(std::pair<int, int>(*(int*)((char*)attributeData + 1), this->leftOffset));
+				break;
+			case TypeReal:
+				this->intMap.insert(std::pair<float, int>(*(float*)((char*)attributeData + 1), this->leftOffset));
+				break;
+			case TypeVarChar:
+				int keySize = *(int*)((char*)attributeData + 1);
+				char* charKey = (char*)calloc(keySize, 1);
+				memcpy(charKey, (char*)attributeData + 1 + sizeof(int), keySize);
+				string key = string(charKey, keySize);
+				free(charKey);
+				this-> stringMap.insert(std::pair<string, int>(key, this->leftOffset));
+				break;
+		}
+
+		this->leftOffset += getTupleSize((char*)this->leftBlockBuffer + this->leftOffset);
+		memset(attributeData, 0, PAGE_SIZE);
+	}
+	free(attributeData);
+	return 0;
+}
+
+RC BNLJoin::joinTables() {
+	bool reachedEnd = false;
+	void* rightTuple = calloc(PAGE_SIZE, 1);
+	void* attributeData = calloc(PAGE_SIZE, 1);
+	RC result;
+
+	while(true) {
+//		break;
+		result = fillBuffer();
+		if(result == -1) {
+			//TODO:
+			reachedEnd = true;
+			break;
+		} else if(this->leftOffset == 0) {
+			//TODO: handle empty buffer received
+			break;
+		}
+
+		while(this->rightInIter->getNextTuple(rightTuple) != -1) {
+			getAttributeFromRecord(rightTuple, attributeData, this->joinAttribute.name, this->rightAttributes);
+
+			switch(this->joinAttribute.type) {
+				case TypeInt:
+					int key = *(int*)((char*)attributeData + 1);
+					multimap<int, int>::iterator it = this->intMap.lower_bound(key);
+					if(it->first == key) {
+						memset(rightTuple, 0, PAGE_SIZE);
+						memset(attributeData, 0, PAGE_SIZE);
+						continue;
+					}
+
+					while(it->first == key) {
+
+					}
+					break;
+				case TypeReal:
+
+					break;
+				case TypeVarChar:
+
+					break;
+			}
+		}
+		this->rightInIter->setIterator();
+
+	}
+
+	free(rightTuple);
+}
+
 BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &condition, const unsigned numPages) {
 	this->leftInIter = leftIn;
 	this->rightInIter = rightIn;
@@ -406,6 +551,21 @@ BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &conditio
 	leftIn->getAttributes(this->leftAttributes);
 	rightIn->getAttributes(this->rightAttributes);
 
+	for(int i=0;i<this->leftAttributes.size();i++) {
+		if(this->leftAttributes[i].name == this->condition.lhsAttr) {
+			this->joinAttribute = this->leftAttributes[i];
+		}
+		this->joinAttributes.push_back(this->leftAttributes[i]);
+	}
+	for(int i=0;i<this->rightAttributes.size();i++) {
+		this->joinAttributes.push_back(this->rightAttributes[i]);
+	}
+
+	this -> leftBlockBuffer = calloc(this->numPages*PAGE_SIZE, 1);
+	this->outputPage = calloc(PAGE_SIZE, 1);
+	this->rightInputPage = calloc(PAGE_SIZE, 1);
+
+	this->joinTables();
 
 }
 

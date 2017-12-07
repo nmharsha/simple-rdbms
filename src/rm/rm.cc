@@ -467,14 +467,14 @@ RC RelationManager::getAttributes(const string &tableName, vector<Attribute> &at
     free(data);
     return 0;
 }
-
+//NOTE: This is also present in qe take care
 RC RelationManager::getAttributeFromRecord(const void* data, void* attributeData, string attributeName, vector<Attribute> attributes) {
     int offset = 0;
     for(int i=0;i < attributes.size(); i++) {
         int numOfNullBytes = (int)ceil((double)attributes.size()/8);
         char nullByte = *((char*)data + i/8);
         bool nullBitSet = (nullByte & (1<<((8-i%8-1)))) > 0;
-        cout << "Null bit set: " << nullBitSet << endl;
+//        cout << "Null bit set: " << nullBitSet << endl;
         if(attributes[i].name == attributeName) {
             if(attributes[i].type == TypeInt || attributes[i].type == TypeReal) {
                 *(char*)attributeData = 0;
@@ -618,11 +618,11 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
             resultSet.push_back(next);
 
         string tableNameInd = resultSet[0];
-        cout << "Column index file name is: " << tableNameInd << endl;
+//        cout << "Column index file name is: " << tableNameInd << endl;
         string attributeNameInd = resultSet[1];
-        cout << "Column index column name is: " << attributeNameInd << endl;
+//        cout << "Column index column name is: " << attributeNameInd << endl;
         if(tableNameInd == tableName) {
-            cout << "Equals successful" << endl;
+//            cout << "Equals successful" << endl;
             IXFileHandle ixFileHandle;
             result = indexManager -> openFile(indexFileName, ixFileHandle);
             if(result == -1) {

@@ -261,7 +261,22 @@ class BNLJoin : public Iterator {
 
         Attribute joinAttribute;
 
+        void* leftBlockBuffer;
+        void* outputPage;
+        void* rightInputPage;
+        int leftOffset;
+        multimap<int, int> intMap;
+        multimap<float, int> floatMap;
+        multimap<string, int> stringMap;
 
+
+    long createLeftBuffer();
+
+    RC joinTables();
+
+    int getTupleSize(void* tuple);
+
+    RC fillBuffer();
 };
 
 
