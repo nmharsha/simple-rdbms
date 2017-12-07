@@ -390,11 +390,36 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
     attrNullIndicator.clear();
 }
 
-BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &condition, const unsigned numPages) {
+
+
+//BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &condition, const unsigned numPages) {
+//	this->leftInIter = leftIn;
+//	this->rightInIter = rightIn;
+//	this->condition = condition;
+//	this->numPages = numPages;
+//
+//	this->leftAttributes.clear();
+//	this->rightAttributes.clear();
+//	this->joinAttributes.clear();
+//
+//	leftIn->getAttributes(this->leftAttributes);
+//	rightIn->getAttributes(this->rightAttributes);
+//}
+//
+//RC BNLJoin::getNextTuple(void *data) {
+//
+//	return QE_EOF;
+//}
+
+
+
+INLJoin::INLJoin(Iterator *leftIn,           // Iterator of input R
+               IndexScan *rightIn,          // IndexScan Iterator of input S
+               const Condition &condition   // Join condition
+){
 	this->leftInIter = leftIn;
 	this->rightInIter = rightIn;
 	this->condition = condition;
-	this->numPages = numPages;
 
 	this->leftAttributes.clear();
 	this->rightAttributes.clear();
@@ -403,11 +428,109 @@ BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &conditio
 	leftIn->getAttributes(this->leftAttributes);
 	rightIn->getAttributes(this->rightAttributes);
 
+//	for(int i = 0; i < leftAttributes.size(); i++) {
+//		joinAttributes.push_back(leftAttributes[i]);
+//	}
+//
+//	for(int i = 0; i < rightAttributes.size(); i++) {
+//		joinAttributes.push_back(rightAttributes[i]);
+//	}
+
+
 
 }
 
+void* mergeRecords(void* left, void* right, vector<Attribute> leftAttrs, vector<Attribute> rightAttrs){
+    int nullsLeft = ceil((double) leftAttrs.size() / CHAR_BIT);
+    int nullsRight = ceil((double) leftAttrs.size() / CHAR_BIT);
+    int nullsTotal = leftAttrs.size() + rightAttrs.size();
+
+	int leftOffset = 0;
+	leftOffset += nullsLeft;
+	int rightOffset = 0;
+	rightOffset += nullsRight;
+
+    vector<unsigned int> bitVectorLeft;
+    for(int i = 0; i < nullsLeft; i++){
+        std::bitset<8> x(*((char *)left + i));
+        for(int j = x.size() - 1; j >= 0; j--) {
+            unsigned int bitValue = x[j];
+            bitVectorLeft.push_back(bitValue);
+        }
+    }
+    vector<unsigned int> bitVectorRight;
+    for(int i = 0; i < nullsRight; i++){
+        std::bitset<8> x(*((char *)right + i));
+        for(int j = x.size() - 1; j >= 0; j--) {
+            unsigned int bitValue = x[j];
+            bitVectorRight.push_back(bitValue);
+        }
+    }
+
+    int i = 0;
+	while(i < leftAttrs.size()){
+		if(bitVectorLeft[i] == 0){
+			if(leftAttrs[i].type == TypeInt || leftAttrs[i].type == TypeReal) {
+				leftOffset += sizeof(int);
+			} else {
+				int len = *(int *)((char *) left + leftOffset);
+				leftOffset += sizeof(int);
+				leftOffset += len;
+			}
+		}
+		i++;
+	}
+	i = 0;
+	while(i < rightAttrs.size()){
+		if(bitVectorRight[i] == 0){
+			if(rightAttrs[i].type == TypeInt || rightAttrs[i].type == TypeReal) {
+				rightOffset += sizeof(int);
+			} else {
+				int len = *(int *)((char *) left + rightOffset);
+				rightOffset += sizeof(int);
+				rightOffset += len;
+			}
+		}
+		i++;
+	}
+
+	int offset = 0;
+	void* returnedData = calloc(nullsTotal + leftOffset + rightOffset, 1);
+
+	// set the null bits here
+    int numLeft = 0;
+    int numRight = 0;
+    int numTotal = 0;
+    	while(numLeft < bitVectorLeft.size()) {
+    		if(bitVectorLeft[numLeft] == 1) {
+    			char bite = *((char*)returnedData + numTotal/8);
+    			bite |= 1<<(8-numTotal%8-1);
+    			memcpy((char*) returnedData + numTotal/8, &bite, 1);
+    		}
+    		numLeft++;
+    		numTotal++;
+    	}
+    	while(numRight < bitVectorRight.size()) {
+		if(bitVectorRight[numRight] == 1) {
+			char bite = *((char*)returnedData + numTotal/8);
+			bite |= 1<<(8-numTotal%8-1);
+			memcpy((char*) returnedData + numTotal/8, &bite, 1);
+		}
+		numRight++;
+		numTotal++;
+    	}
+    	/////
+
+	offset += nullsTotal;
+	memcpy((char*) returnedData + offset, (char *) left + nullsLeft, leftOffset);
+	offset += leftOffset;
+	memcpy((char*) returnedData + offset, (char *) right + nullsRight, rightOffset);
+	return returnedData;
+
+}
 
 RC INLJoin::getNextTuple(void *data) {
+
 	return QE_EOF;
 }
 
