@@ -442,7 +442,7 @@ INLJoin::INLJoin(Iterator *leftIn,           // Iterator of input R
 
 void* mergeRecords(void* left, void* right, vector<Attribute> leftAttrs, vector<Attribute> rightAttrs){
     int nullsLeft = ceil((double) leftAttrs.size() / CHAR_BIT);
-    int nullsRight = ceil((double) leftAttrs.size() / CHAR_BIT);
+    int nullsRight = ceil((double) rightAttrs.size() / CHAR_BIT);
     int nullsTotal = leftAttrs.size() + rightAttrs.size();
 
 	int leftOffset = 0;
