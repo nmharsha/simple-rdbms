@@ -2,7 +2,6 @@
 #include "qe.h"
 #include <set>
 
-
 Filter::Filter(Iterator* input, const Condition &condition) {
 	filterInput = input;
 	filterCondition = condition;
@@ -217,7 +216,6 @@ void Filter::getAttributeValue(void* data, void* returnedData, vector<Attribute>
 
 }
 
-
 Project::Project(Iterator *input, const vector<string> &attrNames){
 	projectInput = input;
 	attrs.clear();
@@ -251,7 +249,6 @@ RC Project::getNextTuple(void *data) {
 	free(record);
 	return 0;
 }
-
 
 void Project::getAttributes(vector<Attribute> &attrs) const {
 	attrs.clear();
@@ -393,6 +390,10 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
     attrNullIndicator.clear();
 }
 
+
+RC INLJoin::getNextTuple(void *data) {
+	return QE_EOF;
+}
 
 
 
