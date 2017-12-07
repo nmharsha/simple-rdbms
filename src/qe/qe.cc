@@ -263,7 +263,7 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
 	for(int a = 0; a < proj.size(); a++) {
 		void* v = calloc(PAGE_SIZE, 1);
 		projAttrs.insert ( std::pair<string,void *>(proj[a].name, v) );
-		free(v);
+//		free(v);
 		attrNullIndicator.insert ( std::pair<string,int>(proj[a].name, 1));
 	}
 
@@ -376,10 +376,10 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
     		// set the bit values here...
 
     		/////////////////////////////
-    		if(curr.type == TypeInt || curr.type == TypeReal) {
+    		if((curr.type == TypeInt || curr.type == TypeReal) && attrNullIndicator.find(curr.name)->second == 0) {
     			memcpy((char*) returnedData + newOffset, (char*) projAttrs.find(curr.name)->second, sizeof(int));
     			newOffset += sizeof(int);
-    		} else {
+    		} else if(curr.type == TypeVarChar && attrNullIndicator.find(curr.name)->second == 0) {
     			int len = *(int *)projAttrs.find(curr.name)->second;
     			memcpy((char*) returnedData + newOffset, (char*) projAttrs.find(curr.name)->second, sizeof(int) + len);
     			newOffset += (sizeof(int) + len);
@@ -388,6 +388,22 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
 
     projAttrs.clear();
     attrNullIndicator.clear();
+}
+
+BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &condition, const unsigned numPages) {
+	this->leftInIter = leftIn;
+	this->rightInIter = rightIn;
+	this->condition = condition;
+	this->numPages = numPages;
+
+	this->leftAttributes.clear();
+	this->rightAttributes.clear();
+	this->joinAttributes.clear();
+
+	leftIn->getAttributes(this->leftAttributes);
+	rightIn->getAttributes(this->rightAttributes);
+
+
 }
 
 

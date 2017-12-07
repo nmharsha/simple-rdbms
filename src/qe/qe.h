@@ -245,12 +245,23 @@ class BNLJoin : public Iterator {
                const Condition &condition,   // Join condition
                const unsigned numPages       // # of pages that can be loaded into memory,
 			                                 //   i.e., memory block size (decided by the optimizer)
-        ){};
+        );
         ~BNLJoin(){};
 
-        RC getNextTuple(void *data){return QE_EOF;};
+        RC getNextTuple(void *data);
         // For attribute in vector<Attribute>, name it as rel.attr
-        void getAttributes(vector<Attribute> &attrs) const{};
+        void getAttributes(vector<Attribute> &attrs) const;
+        Iterator* leftInIter;
+        TableScan* rightInIter;
+        Condition condition;
+        unsigned numPages;
+        vector<Attribute> leftAttributes;
+        vector<Attribute> rightAttributes;
+        vector<Attribute> joinAttributes;
+
+        Attribute joinAttribute;
+
+
 };
 
 
