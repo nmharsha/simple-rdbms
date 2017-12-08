@@ -99,6 +99,7 @@ RC testCase_9() {
 
 		// Is an attribute right.C NULL?
 		nullBit = *(unsigned char *)((char *)data) & (1 << 2);
+		cout << "Null bit right.D: "<<nullBit << endl;
 		if (nullBit) {
 			cerr << endl << "***** A returned value is not correct. *****" << endl;
 			goto clean_up;
@@ -112,6 +113,7 @@ RC testCase_9() {
 	}
 
 	if (expectedResultCnt != actualResultCnt) {
+		cout << "Cound is: " << actualResultCnt << endl;
 		cerr << "***** The number of returned tuple is not correct. *****" << endl;
 		rc = fail;
 	}

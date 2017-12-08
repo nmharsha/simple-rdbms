@@ -428,22 +428,101 @@ INLJoin::INLJoin(Iterator *leftIn,           // Iterator of input R
 	leftIn->getAttributes(this->leftAttributes);
 	rightIn->getAttributes(this->rightAttributes);
 
-//	for(int i = 0; i < leftAttributes.size(); i++) {
-//		joinAttributes.push_back(leftAttributes[i]);
-//	}
-//
-//	for(int i = 0; i < rightAttributes.size(); i++) {
-//		joinAttributes.push_back(rightAttributes[i]);
-//	}
+	for(int i = 0; i < leftAttributes.size(); i++) {
+		joinAttributes.push_back(leftAttributes[i]);
+	}
 
-
+	for(int i = 0; i < rightAttributes.size(); i++) {
+		joinAttributes.push_back(rightAttributes[i]);
+	}
 
 }
 
-void* mergeRecords(void* left, void* right, vector<Attribute> leftAttrs, vector<Attribute> rightAttrs){
+RC INLJoin::getNextTuple(void *data) {
+
+	void* leftData = calloc(PAGE_SIZE, 1);
+	void* rightData = calloc(PAGE_SIZE, 1);
+	void* key = calloc(PAGE_SIZE, 1);
+	int status = 0;
+	int leftEnd = 0;
+	cout << "In get next tuple" << endl;
+	while(this->leftInIter->getNextTuple(leftData) != EOF){
+		cout << "status: "<<status << endl;
+		cout << "Looking for: " << condition.lhsAttr << endl;
+		getAttributeValue(key, leftData, condition.lhsAttr, leftAttributes);
+		cout << "key INT: " << *(int *) ((char*)key) << endl;
+		cout << "key FLOAT: " << *(float *) ((char*)key) << endl;
+		rightInIter->setIterator(key, key, true, true);
+
+		while(rightInIter->getNextTuple(rightData) != EOF){
+//			void* returnedData = calloc(PAGE_SIZE, 1);
+			leftEnd = 1;
+			int size = mergeRecords(data, leftData, rightData, leftAttributes, rightAttributes);
+//			void* mergedRecord = calloc(size, 1);
+//			memcpy((char*)mergedRecord, (char*) returnedData, size);
+
+			return 0;
+		}
+	}
+	if(leftEnd == 0){
+		return QE_EOF;
+	}
+	return 0;
+}
+
+void INLJoin::getAttributes(vector<Attribute> &attrs) const{
+	attrs = joinAttributes;
+}
+
+
+void INLJoin::getAttributeValue(void* returnedData, void* data, string &attrName, vector<Attribute> attrs){
+	int offset = 0;
+    int nullFieldsIndicatorActualSize = ceil((double) attrs.size() / CHAR_BIT);
+    offset += nullFieldsIndicatorActualSize;
+
+    vector<unsigned int> bitVector;
+    for(int i = 0; i < nullFieldsIndicatorActualSize; i++){
+        std::bitset<8> x(*((char *)data + i));
+        for(int j = x.size() - 1; j >= 0; j--) {
+            unsigned int bitValue = x[j];
+            bitVector.push_back(bitValue);
+        }
+    }
+    int i = 0;
+    bool found = false;
+    while(i < attrs.size() && !found) {
+    		cout << "Name1: " << attrs[i].name << endl;
+    		cout << "Name2: " << attrName << endl;
+    		if(attrs[i].name.compare(attrName) == 0) {
+    			cout << "Found" << endl;
+    			found = true;
+    		}
+    		if(bitVector[i] == 0){
+    			if(attrs[i].type == TypeInt || attrs[i].type == TypeReal) {
+    				if(found == true) {
+    					cout << "VALUEEEEE: ";
+    					cout << *(int *) ((char*) data + offset) << endl;
+    					memcpy((char*) returnedData, (char*) data + offset, sizeof(int));
+    				}
+    				offset += sizeof(int);
+    			} else {
+    				int len = *(int *)((char *) data + offset);
+    				offset += sizeof(int);
+    				if(found == true) {
+    					memcpy((char*) returnedData, (char*) data + offset, len);
+    				}
+    				offset += len;
+    			}
+    		}
+    		i++;
+    	}
+
+}
+
+int INLJoin::mergeRecords(void* returnedData, void* left, void* right, vector<Attribute> leftAttrs, vector<Attribute> rightAttrs){
     int nullsLeft = ceil((double) leftAttrs.size() / CHAR_BIT);
     int nullsRight = ceil((double) rightAttrs.size() / CHAR_BIT);
-    int nullsTotal = leftAttrs.size() + rightAttrs.size();
+    int nullsTotal = ceil((double) (rightAttrs.size() + leftAttrs.size()) / CHAR_BIT);
 
 	int leftOffset = 0;
 	leftOffset += nullsLeft;
@@ -484,6 +563,9 @@ void* mergeRecords(void* left, void* right, vector<Attribute> leftAttrs, vector<
 	while(i < rightAttrs.size()){
 		if(bitVectorRight[i] == 0){
 			if(rightAttrs[i].type == TypeInt || rightAttrs[i].type == TypeReal) {
+				cout << "Value of right: INT: " << *(int *) ((char*)right + rightOffset) << endl;
+				cout << "Value of right: REAL: " << *(float *) ((char*)right + rightOffset) << endl;
+
 				rightOffset += sizeof(int);
 			} else {
 				int len = *(int *)((char *) left + rightOffset);
@@ -495,7 +577,7 @@ void* mergeRecords(void* left, void* right, vector<Attribute> leftAttrs, vector<
 	}
 
 	int offset = 0;
-	void* returnedData = calloc(nullsTotal + leftOffset + rightOffset, 1);
+//	void* returnedData = calloc(nullsTotal + leftOffset + rightOffset, 1);
 
 	// set the null bits here
     int numLeft = 0;
@@ -520,18 +602,179 @@ void* mergeRecords(void* left, void* right, vector<Attribute> leftAttrs, vector<
 		numTotal++;
     	}
     	/////
-
+    	cout << "Nulls total: " << nullsTotal << endl;
+    	cout << "Leftoffset: " << leftOffset << " Rightoffset: " << rightOffset << endl;
 	offset += nullsTotal;
-	memcpy((char*) returnedData + offset, (char *) left + nullsLeft, leftOffset);
-	offset += leftOffset;
-	memcpy((char*) returnedData + offset, (char *) right + nullsRight, rightOffset);
-	return returnedData;
+	memcpy((char*) returnedData + offset, (char *) left + nullsLeft, leftOffset - nullsLeft);
+	offset += (leftOffset - nullsLeft);
+	memcpy((char*) returnedData + offset, (char *) right + nullsRight, rightOffset - nullsRight);
+//	return returnedData;
+	return nullsTotal + leftOffset + rightOffset;
+}
+
+
+Aggregate::Aggregate(Iterator *input,          // Iterator of input R
+        Attribute aggAttr,        // The attribute over which we are computing an aggregate
+        AggregateOp op ){
+	sum = 0.0;
+	max = INT_MIN;
+	min = INT_MAX;
+	count = 0;
+	operation = op;
+	foundAlready = 0;
+	aggregateAttr = aggAttr;
+
+	vector<Attribute> attrs;
+	input->getAttributes(attrs);
+
+	void *record = calloc(PAGE_SIZE, 1);
+
+	while(input->getNextTuple(record) != EOF){
+		void* returnedAttrValue = calloc(sizeof(int) + 1, 1);
+		 // populate this guy, get the attribute value ^
+		int pos = 0;
+		if(attrs.size() != 0) {
+			for(int i = 0; i < attrs.size(); i++) {
+				if(attrs[i].name.compare(aggAttr.name) == 0) {
+					pos = i;
+					break;
+				}
+			}
+		}
+
+		// call the function here to retrieve it from the record
+		getAttributeValue(record, returnedAttrValue, attrs, pos);
+
+		// copy the nullIndicator
+		char nullIndicator;
+		memcpy(&nullIndicator, returnedAttrValue, 1);
+
+		//if the byte value is 0 then go to next iteration
+		if(nullIndicator == 128) {
+			continue;
+		}
+		if(aggAttr.type == TypeInt) {
+		 int val = *(int *)((char*)returnedAttrValue + 1);
+		 sum += val;
+		 if(val < min) {
+			 min = val;
+		 }
+		 if(val > max) {
+			 max = val;
+		 }
+		} else if(aggAttr.type == TypeReal) {
+		 float val = *(float *)((char*)returnedAttrValue + 1);
+		 sum += val;
+		 if(val < min) {
+			 min = val;
+		 }
+		 if(val > max) {
+			 max = val;
+		 }
+		}
+		count++;
+	}
 
 }
 
-RC INLJoin::getNextTuple(void *data) {
-
+RC Aggregate::getNextTuple(void *data){
+	if(foundAlready == 1){
+		return QE_EOF;
+	}
+	if(operation == MIN) {
+		foundAlready = 1;
+		char c = 0;
+		memcpy((char *)data, &c, 1);
+		memcpy((char *) data + 1, &min, sizeof(int));
+//		return min;
+		return 0;
+	} else if(operation == MAX) {
+		foundAlready = 1;
+		char c = 0;
+		memcpy((char *)data, &c, 1);
+		memcpy((char *) data + 1, &max, sizeof(int));
+		return 0;
+	} else if(operation == COUNT) {
+		char c = 0;
+		memcpy((char *)data, &c, 1);
+		foundAlready = 1;
+		memcpy((char *) data + 1, &count, sizeof(int));
+		return 0;
+	} else if(operation == SUM) {
+		char c = 0;
+		memcpy((char *)data, &c, 1);
+		memcpy((char *) data + 1, &sum, sizeof(int));
+		foundAlready = 1;
+		return 0;
+	} else if(operation == AVG) {
+		foundAlready = 1;
+		char c = 0;
+		memcpy((char *)data, &c, 1);
+		float average = (float)(sum/count);
+//		return (float)(sum/count);
+		memcpy((char *) data + 1, &average, sizeof(int));
+		return 0;
+	}
 	return QE_EOF;
+}
+
+void Aggregate::getAttributes(vector<Attribute> &attrs) const{
+	attrs.clear();
+	Attribute returnAttr;
+	returnAttr.type = TypeReal;
+	returnAttr.length = 4;
+	string name;
+	if(operation == MAX) {
+		name = "MAX";
+	} else if(operation == MIN) {
+		name = "MIN";
+	} else if(operation == COUNT) {
+		name = "COUNT";
+	} else if(operation == AVG) {
+		name = "AVG";
+	} else if(operation == SUM) {
+		name = "SUM";
+	}
+	returnAttr.name = name + "(" + aggregateAttr.name + ")";
+	attrs.push_back(returnAttr);
+}
+
+void Aggregate::getAttributeValue(void* data, void* returnedData, vector<Attribute> attrs, unsigned int currPos) {
+	int offset = 0;
+    int nullFieldsIndicatorActualSize = ceil((double) attrs.size() / CHAR_BIT);
+    offset += nullFieldsIndicatorActualSize;
+
+    vector<unsigned int> bitVector;
+    for(int i = 0; i < nullFieldsIndicatorActualSize; i++){
+        std::bitset<8> x(*((char *)data + i));
+        for(int j = x.size() - 1; j >= 0; j--) {
+            unsigned int bitValue = x[j];
+            bitVector.push_back(bitValue);
+        }
+    }
+    //get to the current attribute
+    int i = 0;
+	while(i < currPos){
+		if(bitVector[i] == 0){
+			if(attrs[i].type == TypeInt || attrs[i].type == TypeReal) {
+				offset += sizeof(int);
+			} else {
+				int len = *(int *)((char *) data + offset);
+				offset += sizeof(int);
+				offset += len;
+			}
+		}
+		i++;
+	}
+	char c;
+	if(bitVector[i] == 0) {
+		c = 0;
+		memcpy((char*)returnedData, &c, 1);
+		memcpy((char*)returnedData + 1, (char *)data + offset, sizeof(int));
+	} else {
+		c = 128;
+		memcpy((char*)returnedData, &c, 1);
+	}
 }
 
 

@@ -742,19 +742,19 @@ RC RelationManager::indexScan(const string &tableName,
              bool highKeyInclusive,
              RM_IndexScanIterator &rm_IndexScanIterator
 ) {
-	cout << "scan check 1" << endl;
+//	cout << "scan check 1" << endl;
     IndexManager* indexManager = IndexManager::instance();
-    cout << "scan check 2" << endl;
+//    cout << "scan check 2" << endl;
 //    IX_ScanIterator ix_scanIterator;
-    cout << "scan check 3" << endl;
+//    cout << "scan check 3" << endl;
     vector<Attribute> attributes;
-    cout << "scan check 4" << endl;
+//    cout << "scan check 4" << endl;
     getAttributes(tableName, attributes);
-    cout << "scan check 5" << endl;
+//    cout << "scan check 5" << endl;
     indexManager -> openFile(tableName + "_" + attributeName, rm_IndexScanIterator.ixFileHandle);
-    cout << "scan check 6" << endl;
+//    cout << "scan check 6" << endl;
     indexManager -> scan(rm_IndexScanIterator.ixFileHandle, getAttributeFromName(attributes, attributeName), lowKey, highKey, lowKeyInclusive, highKeyInclusive, rm_IndexScanIterator.ix_scanIterator);
-    cout << "scan check 7" << endl;
+//    cout << "scan check 7" << endl;
     return 0;
 }
 

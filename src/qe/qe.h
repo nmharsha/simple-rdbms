@@ -132,19 +132,19 @@ class IndexScan : public Iterator
         	this->tableName = tableName;
         	this->attrName = attrName;
 
-        	cout << "check 1" << endl;
+//        	cout << "check 1" << endl;
 
             // Get Attributes from RM
             rm.getAttributes(tableName, attrs);
 
             // Call rm indexScan to get iterator
-        	cout << "check 2" << endl;
+//        	cout << "check 2" << endl;
 
             iter = new RM_IndexScanIterator();
-        	cout << "check 3" << endl;
+//        	cout << "check 3" << endl;
 
             rm.indexScan(tableName, attrName, NULL, NULL, true, true, *iter);
-        	cout << "check 4" << endl;
+//        	cout << "check 4" << endl;
 
             // Set alias
             if(alias) this->tableName = alias;
@@ -245,21 +245,21 @@ class BNLJoin : public Iterator {
                const Condition &condition,   // Join condition
                const unsigned numPages       // # of pages that can be loaded into memory,
 			                                 //   i.e., memory block size (decided by the optimizer)
-        );
+        ){};
         ~BNLJoin(){};
 
-        RC getNextTuple(void *data);
+        RC getNextTuple(void *data){return QE_EOF;};
         // For attribute in vector<Attribute>, name it as rel.attr
-        void getAttributes(vector<Attribute> &attrs) const;
-        Iterator* leftInIter;
-        TableScan* rightInIter;
-        Condition condition;
-        unsigned numPages;
-        vector<Attribute> leftAttributes;
-        vector<Attribute> rightAttributes;
-        vector<Attribute> joinAttributes;
-
-        Attribute joinAttribute;
+        void getAttributes(vector<Attribute> &attrs) const{};
+//        Iterator* leftInIter;
+//        TableScan* rightInIter;
+//        Condition condition;
+//        unsigned numPages;
+//        vector<Attribute> leftAttributes;
+//        vector<Attribute> rightAttributes;
+//        vector<Attribute> joinAttributes;
+//
+//        Attribute joinAttribute;
 
 
 };
@@ -276,7 +276,7 @@ class INLJoin : public Iterator {
 
         RC getNextTuple(void *data);
         // For attribute in vector<Attribute>, name it as rel.attr
-        void getAttributes(vector<Attribute> &attrs) const{};
+        void getAttributes(vector<Attribute> &attrs) const;
 
         Iterator* leftInIter;
         IndexScan* rightInIter;
@@ -285,8 +285,12 @@ class INLJoin : public Iterator {
         vector<Attribute> leftAttributes;
         vector<Attribute> rightAttributes;
         vector<Attribute> joinAttributes;
+        vector<void*> buffer;
 
         Attribute joinAttribute;
+        int mergeRecords(void* returnedData, void* left, void* right, vector<Attribute> leftAttrs, vector<Attribute> rightAttrs);
+        void getAttributeValue(void* returnedData, void* data, string &attrName, vector<Attribute> attrs);
+
 
 };
 
@@ -304,6 +308,7 @@ class GHJoin : public Iterator {
       RC getNextTuple(void *data){return QE_EOF;};
       // For attribute in vector<Attribute>, name it as rel.attr
       void getAttributes(vector<Attribute> &attrs) const{};
+
 };
 
 class Aggregate : public Iterator {
@@ -314,7 +319,7 @@ class Aggregate : public Iterator {
         Aggregate(Iterator *input,          // Iterator of input R
                   Attribute aggAttr,        // The attribute over which we are computing an aggregate
                   AggregateOp op            // Aggregate operation
-        ){};
+        );
 
         // Optional for everyone: 5 extra-credit points
         // Group-based hash aggregation
@@ -325,11 +330,20 @@ class Aggregate : public Iterator {
         ){};
         ~Aggregate(){};
 
-        RC getNextTuple(void *data){return QE_EOF;};
+        RC getNextTuple(void *data);
         // Please name the output attribute as aggregateOp(aggAttr)
         // E.g. Relation=rel, attribute=attr, aggregateOp=MAX
         // output attrname = "MAX(rel.attr)"
-        void getAttributes(vector<Attribute> &attrs) const{};
+        void getAttributes(vector<Attribute> &attrs) const;
+        void getAttributeValue(void* data, void* returnedData, vector<Attribute> attrs, unsigned int currPos);
+
+        int foundAlready;
+        float sum;
+        float max;
+        float min;
+        int count;
+        Attribute aggregateAttr;
+        AggregateOp operation;
 };
 
 #endif
