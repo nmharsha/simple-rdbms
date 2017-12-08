@@ -79,6 +79,432 @@ void RecordBasedFileManager::addNewPageToFile(FileHandle &fileHandle) {
 //    free(totalSlotsPtr);
 }
 
+RC RecordBasedFileManager::insertRecordInMemory(FileHandle &fileHandle, const vector<Attribute> &recordDescriptor, const void *data, RID &rid, void* pageRecord) {
+
+    int nullFieldsIndicatorActualSize = ceil((double) recordDescriptor.size() / CHAR_BIT);
+    vector<unsigned int> bitVector;
+
+    for(int i = 0; i < nullFieldsIndicatorActualSize; i++){
+        std::bitset<8> x(*((char *)data + i));
+        for(int j = x.size() - 1; j >= 0; j--) {
+            unsigned int bitValue = x[j];
+            if(debug) cout << j << " : " << bitValue << endl;
+            bitVector.push_back(bitValue);
+        }
+        if(debug) cout << x;
+        if(debug) cout << endl;
+    }
+    int actualNonNull = 0;
+
+
+    unsigned int i = 0;
+    int offset = nullFieldsIndicatorActualSize;
+    //	    int offset = ceil((double) actualNonNull / CHAR_BIT);
+    if(debug) cout << "starting offset: " << offset << endl;
+
+
+    //create a new vector for storing the offsets for newOffset arrays
+    vector<int> newOffsetsVector;
+    vector<unsigned short> newOffsetsVectorShort;
+    if(debug) cout << "why?" << endl;
+    //int varcharCount = 0;
+    while(i < recordDescriptor.size()) {
+        Attribute currAtt = recordDescriptor[i];
+        string name = currAtt.name;
+        string type;
+        if(currAtt.type == TypeInt) {
+            type = "int";
+        } else if(currAtt.type == TypeReal){
+            type = "real";
+        } else if(currAtt.type == TypeVarChar) {
+            type = "varchar";
+        }
+        bool entry = false;
+        if(debug) cout << "Type: " << type << endl;
+        if(bitVector[i] == 0){
+            if(debug) cout << "doesnt even go in" << endl;
+            actualNonNull++;
+            if(currAtt.type == TypeInt) {
+                void *entryPtr;
+                entryPtr = calloc(sizeof(int), 1);
+                memcpy(entryPtr, (char*) data + offset, sizeof(int));
+                offset += sizeof(int);
+                if(debug) cout << "Entry: " << *(int *) entryPtr << endl;
+                free(entryPtr);
+                if(debug) cout << "Offset now" << offset << endl;
+                newOffsetsVector.push_back(offset - 1);
+                newOffsetsVectorShort.push_back((unsigned short) offset - 1);
+                entry = true;
+            }
+            else if(currAtt.type == TypeReal) {
+                void *entryPtr;
+                entryPtr = calloc(sizeof(float), 1);
+                memcpy(entryPtr, (char*) data + offset, sizeof(float));
+                offset += sizeof(float);
+                if(debug)				cout << "Entry: " << *(float *) entryPtr << endl;
+                free(entryPtr);
+                if(debug) cout << "Offset now" << offset << endl;
+
+                newOffsetsVector.push_back(offset - 1);
+                newOffsetsVectorShort.push_back((unsigned short) offset - 1);
+                entry = true;
+            }
+            else if(currAtt.type == TypeVarChar){
+                if(debug) cout << "spotted" << endl;
+                void *entryPtr;
+                // first take 4 bytes for the length of the string
+                entryPtr = calloc(sizeof(int), 1);
+                memcpy( entryPtr , (char*)data+offset, sizeof(int));
+
+//		    							cout << "offset before varchar length: " << offset << endl;
+                offset += sizeof(int); // increment by 4 bytes for length of string
+//									cout << "offset after varchar length: " << offset << endl;
+                if(debug) cout << "done with int" << endl;
+                int len = *(int*)entryPtr;
+
+                if(debug) cout << "The length is :" << len << endl;
+                free(entryPtr);
+
+                // offset is updated to the string start position now
+                entryPtr = calloc(len, 1);
+                memcpy(entryPtr, (char*) data + offset, len);
+                offset += len;
+//		    							cout << "offset after incrementing the length: " << offset << endl;
+                //((char *) entryPtr)[len] = '\0'; //end with a null character for string
+                if(debug)	cout << "Entry: " << (char *) entryPtr << endl;
+                free(entryPtr);
+                if(debug) cout << "Offset now" << offset << endl;
+
+                newOffsetsVector.push_back(offset - 1);
+                newOffsetsVectorShort.push_back((unsigned short) offset - 1);
+                entry = true;
+                //varcharCount++;
+            }
+        } else {
+            if(debug) cout << "lol" << endl;
+        }
+        if(!entry) {
+//		    						cout << "Entry: NULL" << endl;
+        }
+//		    						cout << endl;
+        i++;
+    }
+//		    					cout << "Actual non null: " << actualNonNull << endl << endl;
+
+
+    // varChar count is just for our reference so we know when we
+    // parse it, we have added a null character each time in the end
+    // essentially adding one more character to new data
+    // but we dont have to worry about that since we never really do anything
+
+    // create a new Data for putting in record
+
+    if(debug) cout << "length of data: " << offset<< endl;
+
+    void* newData;
+    int originalSize = offset;
+    // length of original data containing n bytes and raw data
+    int totalFieldSize = actualNonNull; // total number of fields that are not null
+    int offsetsOfNonNulls = totalFieldSize * sizeof(int);
+    // total size needed to keep offsets of all nonnull fields right bit
+
+    int offsetsOfNonNullsShort = totalFieldSize * FIELD_OFFSET_SIZE;
+
+    // orig: int totalNewDataSize = originalSize + totalFieldSize + offsetsOfNonNulls;
+
+    // update to this
+    //int totalNewDataSize = originalSize + offsetsOfNonNulls;
+    int totalNewDataSize = originalSize + offsetsOfNonNullsShort;
+
+    if(debug) cout << "total new data size: " << totalNewDataSize << endl;
+
+    newData = calloc(totalNewDataSize, 1);
+
+    int newDataOffset = 0;
+    int oldDataOffset = 0;
+    memcpy((char*)newData + newDataOffset, (char*) data + oldDataOffset, nullFieldsIndicatorActualSize);
+    newDataOffset += nullFieldsIndicatorActualSize;
+    oldDataOffset += nullFieldsIndicatorActualSize;
+
+    if(debug) cout << "Verifying copied bit vector" << endl;
+
+    for(int i = 0; i < nullFieldsIndicatorActualSize; i++){
+        std::bitset<8> x(*((char *)newData + i));
+        for(int j = x.size() - 1; j >= 0; j--) {
+            int bitValue = x[j];
+            if(debug) cout << j << " : " << bitValue << endl;
+            //		    			bitVector.push_back(bitValue);
+        }
+        if(debug) cout << endl;
+    }
+
+    if(debug) cout << "newOffset: " << newDataOffset << endl;
+    if(debug) cout << "oldOffset: " << oldDataOffset << endl;
+
+//		    				cout << "Adding total NonNull fields: " << actualNonNull << endl;
+
+    // found out how to add & to the int to convert to pointer from prepare record in testcase8/custom
+//		    memcpy((char*) newData + newDataOffset, &actualNonNull, sizeof(int));
+//		    newDataOffset += sizeof(int);
+    if(debug) cout << "newOffset: " << newDataOffset << endl;
+    if(debug) cout << "oldOffset: " << oldDataOffset << endl;
+    if(debug) cout << endl;
+    if(debug) cout << "Verifying the nonNull count... " << endl;
+
+//		    void *verify;
+//			verify = malloc(sizeof(int));
+//			memcpy(verify, (char*) newData + newDataOffset - 4, sizeof(int));
+//
+//						cout << "Nonnulls in new data: " << *(int *) verify << endl;
+//
+//			free(verify);
+
+    if(debug) cout << endl;
+    if(debug) cout << "Now adding the new bit offset vector" << endl;
+//						cout << "First printing to verify end of field offsets" << endl;
+//						for(int i = 0; i < newOffsetsVector.size(); i++) {
+//							cout << newOffsetsVector[i] << endl;
+//						}
+
+    if(debug) cout << " SHORT First printing to verify end of field offsets" << endl;
+    for(int i = 0; i < newOffsetsVectorShort.size(); i++) {
+        if(debug) cout << newOffsetsVectorShort[i] << endl;
+    }
+
+
+    if(debug) cout << "Set correct offsets positions in the vector: " << endl;
+    if(debug) cout << "adding size of totalfiends and offset vector itself: " << /*totalFieldSize +*/ offsetsOfNonNullsShort << endl;
+    if(debug) cout << "New offsets" << endl;
+
+//			for(unsigned int i = 0; i < newOffsetsVector.size(); i++) {
+//				newOffsetsVector[i] += /*totalFieldSize +*/ offsetsOfNonNulls;
+//				cout << newOffsetsVector[i] << endl;
+//			}
+
+// *********************************************************************************************
+//			for(unsigned int i = 0; i < newOffsetsVector.size(); i++) {
+//				newOffsetsVectorShort[i] += /*totalFieldSize +*/ offsetsOfNonNullsShort;
+//				cout << newOffsetsVectorShort[i] << endl;
+//			}
+    // no need to do this, offsets are relative, just compare in the read
+// *********************************************************************************************
+
+    if(debug) cout << "Verified Correctly!" << endl;
+//
+//			cout << endl;
+//
+//			cout << "Now copying them into the newData" << endl;
+
+//			for(unsigned int i = 0; i < newOffsetsVector.size(); i++) {
+//			    memcpy((char*) newData + newDataOffset, &newOffsetsVector[i], sizeof(int));
+//			    newDataOffset += sizeof(int);
+//			}
+
+    for(unsigned int i = 0; i < newOffsetsVectorShort.size(); i++) {
+        memcpy((char*) newData + newDataOffset, &newOffsetsVectorShort[i], FIELD_OFFSET_SIZE);
+        newDataOffset += FIELD_OFFSET_SIZE;
+    }
+
+//			cout << "Added!" << endl;
+//			cout << "Now verifying" << endl;
+
+//			int verifyOffsetsCounter = actualNonNull * sizeof(int);
+//			for(int i = 0; i < actualNonNull; i++){
+//				void *verify;
+//				verify = malloc(sizeof(int));
+//				memcpy(verify, (char*) newData + newDataOffset - verifyOffsetsCounter, sizeof(int));
+////				cout << *(int *) verify << endl;
+//				free(verify);
+//				verifyOffsetsCounter -= sizeof(int);
+//			}
+
+    if(debug) cout << "newOffset: " << newDataOffset << endl;
+    if(debug) cout << "oldOffset: " << oldDataOffset << endl;
+    //
+    if(debug) cout << "Awesome, properly added the offsets" << endl;
+    if(debug) cout << endl;
+    //
+    if(debug) cout << "Now add the rest of the data and verify offsets as you go" << endl;
+    if(debug) cout << endl;
+    if(debug) cout << "newOffset: " << newDataOffset << endl;
+    if(debug) cout << "oldOffset: " << oldDataOffset << endl;
+    if(debug) cout << endl;
+
+    int rawOldDataSize = offset - nullFieldsIndicatorActualSize;
+//		    cout << "raw data in bytes to be added: " << rawOldDataSize << endl;
+
+    memcpy((char*)newData + newDataOffset, (char*) data + oldDataOffset, rawOldDataSize);
+    newDataOffset += rawOldDataSize;
+
+    int newDataSize = newDataOffset;
+//		    cout << "newDataOffset ends at: " << newDataOffset - 1 << endl;
+//		    cout << "newData Length: " << newDataSize << endl;
+
+    int freeBytesNeeded = newDataSize + 12;
+    // 4 bytes each for slotID, slotSize, slotOffSet = 12
+
+    // lastPage = fileHandle.getPersistedAppendCounter() - 1;
+
+    //check current(last) page if it has space
+    int availableSpace = *(int*)((char*) pageRecord + 4092);
+//	cout << "Last page:" << lastPage << endl;
+//	cout << "Available space on last page: " << availableSpace << endl;
+
+    // if(pageNumberToAddRecord < 0) {
+    //     if(availableSpace >= freeBytesNeeded) {
+    //         pageNumberToAddRecord = lastPage;
+    //     } else {
+    //         int currentPage = 0;
+    //         while(currentPage < lastPage) {
+    //             availableSpace = getAvailableSpaceOnPage(lastPage, fileHandle);
+    //             if(availableSpace >= freeBytesNeeded) {
+    //                 pageNumberToAddRecord = currentPage;
+    //                 break;
+    //             }
+    //             currentPage++;
+    //         }
+    //     }
+    // }
+
+    // if pageNumberToAddRecord is still -1 then append a page
+    // if(pageNumberToAddRecord < 0) {
+    //     addNewPageToFile(fileHandle);
+    //     pageNumberToAddRecord = fileHandle.getPersistedAppendCounter() - 1;
+    //     availableSpace = getAvailableSpaceOnPage(pageNumberToAddRecord, fileHandle);
+    // }
+
+
+    int numSlots = *(int*)((char*) pageRecord + 4088);
+    if(debug) cout << "Current Number of Slots on the page to add record: " << numSlots << endl;
+
+//	cout << "PageNumberToAddRecord: " << pageNumberToAddRecord << endl;
+//	cout << "Available Space: " << availableSpace << endl;
+
+    // void* pageRecord; //pageRecord that will be updated and added back!
+    // pageRecord = calloc(PAGE_SIZE, 1);
+    // fileHandle.readPage(pageNumberToAddRecord, pageRecord);
+
+
+    if(debug) cout <<" HERERERERE " << endl;
+
+
+    //find a delete slot
+    int insertAtSlotID;
+    int insertAtOffset;
+    bool lastSlot = false;
+    bool foundDeletedSlot = false;
+    int count = 0;
+
+    int reUseID;
+    int updateOffsetStartID;
+    if(numSlots != 0) {
+        int slotDirectoryOffset = PAGE_SIZE - (12 + 8);
+        int slotOffset = getIntValueAtOffset(pageRecord, slotDirectoryOffset);
+        int slotSizeDirectoryOffset = slotDirectoryOffset + 4;
+        int slotSize = getIntValueAtOffset(pageRecord, slotSizeDirectoryOffset);
+
+        while(count < numSlots && slotOffset >= 0) {
+            if(slotSize == 0) {
+                foundDeletedSlot = true;
+                if(debug) cout << "Its found deleted slot" << endl;
+//				insertAtSlotID = slotDirectoryOffset;
+                insertAtSlotID = count + 1;
+                if(debug) cout << "Resuing the slotID: " << insertAtSlotID << endl;
+                reUseID = count + 1;
+                if(count + 1 == numSlots){
+                    insertAtOffset = PAGE_SIZE - (availableSpace + 8 + 12*numSlots);
+                    lastSlot = true;
+                } else {
+//					insertAtOffset = PAGE_SIZE - (availableSpace + 8 + 12*(count+1));
+                    insertAtOffset = getIntValueAtOffset(pageRecord, PAGE_SIZE - (8 + 12*(count+1)));
+                }
+                if(debug) cout << "Inserting At the offset of deleted slotID which is: " << insertAtOffset << endl;
+//				else {
+//					//find the next non-deleted directory
+//					count++;
+//					slotDirectoryOffset -=12;
+//					slotOffset = getIntValueAtOffset(pageRecord, slotDirectoryOffset);
+//					slotSizeDirectoryOffset = slotDirectoryOffset + 4;
+//					slotSize = getIntValueAtOffset(pageRecord, slotSizeDirectoryOffset);
+//
+//					while((slotSize == 0 || slotOffset < 0) && (count < numSlots)) {
+//						count++;
+//						slotDirectoryOffset -=12;
+//						slotOffset = getIntValueAtOffset(pageRecord, slotDirectoryOffset);
+//						slotSizeDirectoryOffset = slotDirectoryOffset + 4;
+//						slotSize = getIntValueAtOffset(pageRecord, slotSizeDirectoryOffset);
+//					}
+//					updateOffsetStartID = count + 1;
+//					insertAtOffset = getIntValueAtOffset(pageRecord, slotDirectoryOffset);
+//				}
+                break;
+            }
+            slotDirectoryOffset -= 12;
+            slotOffset = getIntValueAtOffset(pageRecord, slotDirectoryOffset);
+            slotSizeDirectoryOffset = slotDirectoryOffset + 4;
+            slotSize = getIntValueAtOffset(pageRecord, slotSizeDirectoryOffset);
+
+            count++;
+        }
+    }
+
+
+
+
+
+
+    //Verifying Page Record
+//	cout << endl;
+//	cout << "Verifying Page Record Stuff: " << endl;
+    void *verifyPageRecordAvailableSpace;
+    verifyPageRecordAvailableSpace = calloc(sizeof(int), 1);
+    memcpy(verifyPageRecordAvailableSpace, (char*) pageRecord + 4092, sizeof(int));
+//	cout << "Space should be 4088, and it is: ";
+//	cout << *(int *) verifyPageRecordAvailableSpace << endl;
+//	cout << ":)" << endl;
+//
+//	cout << "Free bytes needed: " << freeBytesNeeded << endl;
+    int updatedSpace = availableSpace - freeBytesNeeded;
+//	cout << "updatedSpace should be: " << updatedSpace << endl;
+
+    updateAvailableSpace(pageRecord, updatedSpace);
+//	cout << "Verifying proper update of free space:" << endl;
+    memcpy(verifyPageRecordAvailableSpace, (char*) pageRecord + 4092, sizeof(int));
+//		cout << "Space should be 4031, and it is: ";
+//		cout << *(int *) verifyPageRecordAvailableSpace << endl;
+//		cout << ":)" << endl;
+
+    // now updating the slots
+//	cout << "Updating the number of slots" << endl;
+    numSlots += 1;
+    updateSlotNum(pageRecord, numSlots);
+    int currSlotID = getSlotNum(pageRecord);
+//	cout << "Verifying... " << endl;
+//	cout << "Slots should be 1, and it is: ";
+//	cout << currSlotID << endl;
+//	cout << ":)" << endl << endl;
+//
+//	cout << "Now creating the Directory Entry: " << endl;
+    int directoryOffset = PAGE_SIZE - (currSlotID * 12 + 8);
+    int offsetToRecord = PAGE_SIZE - (updatedSpace + currSlotID * 12 + 8) - newDataSize;
+    writeDirectoryEntry(directoryOffset, offsetToRecord, newDataSize, currSlotID, pageRecord);
+    writeRecordData(offsetToRecord, newDataSize, pageRecord, newData);
+
+
+    // fileHandle.writePage(pageNumberToAddRecord, pageRecord);
+    // rid.pageNum = pageNumberToAddRecord;
+    // rid.slotNum = currSlotID;
+
+    if (debug) cout << "New Data Size in Insert at RID: " << rid.pageNum << ", " << rid.slotNum << " : " << newDataSize << endl;
+
+
+    free(newData);
+    free(verifyPageRecordAvailableSpace);
+    vector<unsigned int>().swap(bitVector);
+
+    return 0;
+}
+
 RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const vector<Attribute> &recordDescriptor, const void *data, RID &rid) {
 
 

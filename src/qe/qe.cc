@@ -2,7 +2,6 @@
 #include "qe.h"
 #include <set>
 
-
 Filter::Filter(Iterator* input, const Condition &condition) {
 	filterInput = input;
 	filterCondition = condition;
@@ -217,7 +216,6 @@ void Filter::getAttributeValue(void* data, void* returnedData, vector<Attribute>
 
 }
 
-
 Project::Project(Iterator *input, const vector<string> &attrNames){
 	projectInput = input;
 	attrs.clear();
@@ -251,7 +249,6 @@ RC Project::getNextTuple(void *data) {
 	free(record);
 	return 0;
 }
-
 
 void Project::getAttributes(vector<Attribute> &attrs) const {
 	attrs.clear();
@@ -393,12 +390,6 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
     attrNullIndicator.clear();
 }
 
-BNLJoin::createLeftBuffer() {
-	for(int i=0; i<this->numPages; i++) {
-
-	}
-}
-
 int BNLJoin::getTupleSize(void* tuple) {
 	int offset = 0;
 	int size = 0;
@@ -488,6 +479,94 @@ RC BNLJoin::fillBuffer() {
 	return 0;
 }
 
+int mergeRecords2(void* left, void* right, vector<Attribute> leftAttrs, vector<Attribute> rightAttrs, void* returnedData){
+    int nullsLeft = ceil((double) leftAttrs.size() / CHAR_BIT);
+    int nullsRight = ceil((double) rightAttrs.size() / CHAR_BIT);
+    int nullsTotal = leftAttrs.size() + rightAttrs.size();
+
+    int leftOffset = 0;
+    leftOffset += nullsLeft;
+    int rightOffset = 0;
+    rightOffset += nullsRight;
+
+    vector<unsigned int> bitVectorLeft;
+    for(int i = 0; i < nullsLeft; i++){
+        std::bitset<8> x(*((char *)left + i));
+        for(int j = x.size() - 1; j >= 0; j--) {
+            unsigned int bitValue = x[j];
+            bitVectorLeft.push_back(bitValue);
+        }
+    }
+    vector<unsigned int> bitVectorRight;
+    for(int i = 0; i < nullsRight; i++){
+        std::bitset<8> x(*((char *)right + i));
+        for(int j = x.size() - 1; j >= 0; j--) {
+            unsigned int bitValue = x[j];
+            bitVectorRight.push_back(bitValue);
+        }
+    }
+
+    int i = 0;
+    while(i < leftAttrs.size()){
+        if(bitVectorLeft[i] == 0){
+            if(leftAttrs[i].type == TypeInt || leftAttrs[i].type == TypeReal) {
+                leftOffset += sizeof(int);
+            } else {
+                int len = *(int *)((char *) left + leftOffset);
+                leftOffset += sizeof(int);
+                leftOffset += len;
+            }
+        }
+        i++;
+    }
+    i = 0;
+    while(i < rightAttrs.size()){
+        if(bitVectorRight[i] == 0){
+            if(rightAttrs[i].type == TypeInt || rightAttrs[i].type == TypeReal) {
+                rightOffset += sizeof(int);
+            } else {
+                int len = *(int *)((char *) left + rightOffset);
+                rightOffset += sizeof(int);
+                rightOffset += len;
+            }
+        }
+        i++;
+    }
+
+    int offset = 0;
+//    void* returnedData = calloc(, 1);
+
+    // set the null bits here
+    int numLeft = 0;
+    int numRight = 0;
+    int numTotal = 0;
+    while(numLeft < bitVectorLeft.size()) {
+        if(bitVectorLeft[numLeft] == 1) {
+            char bite = *((char*)returnedData + numTotal/8);
+            bite |= 1<<(8-numTotal%8-1);
+            memcpy((char*) returnedData + numTotal/8, &bite, 1);
+        }
+        numLeft++;
+        numTotal++;
+    }
+    while(numRight < bitVectorRight.size()) {
+        if(bitVectorRight[numRight] == 1) {
+            char bite = *((char*)returnedData + numTotal/8);
+            bite |= 1<<(8-numTotal%8-1);
+            memcpy((char*) returnedData + numTotal/8, &bite, 1);
+        }
+        numRight++;
+        numTotal++;
+    }
+    /////
+
+    offset += nullsTotal;
+    memcpy((char*) returnedData + offset, (char *) left + nullsLeft, leftOffset);
+    offset += leftOffset;
+    memcpy((char*) returnedData + offset, (char *) right + nullsRight, rightOffset);
+    return nullsTotal + leftOffset + rightOffset;
+}
+
 RC BNLJoin::joinTables() {
 	bool reachedEnd = false;
 	void* rightTuple = calloc(PAGE_SIZE, 1);
@@ -495,15 +574,13 @@ RC BNLJoin::joinTables() {
 	RC result;
 
 	while(true) {
+        this->intMap.clear();
+        this->floatMap.clear();
+        this->stringMap.clear();
 //		break;
 		result = fillBuffer();
-		if(result == -1) {
-			//TODO:
-			reachedEnd = true;
-			break;
-		} else if(this->leftOffset == 0) {
-			//TODO: handle empty buffer received
-			break;
+		if(result == -1 || this->leftOffset == 0) {
+            break;
 		}
 
 		while(this->rightInIter->getNextTuple(rightTuple) != -1) {
@@ -513,21 +590,81 @@ RC BNLJoin::joinTables() {
 				case TypeInt:
 					int key = *(int*)((char*)attributeData + 1);
 					multimap<int, int>::iterator it = this->intMap.lower_bound(key);
-					if(it->first == key) {
+					if(it->first != key) {
 						memset(rightTuple, 0, PAGE_SIZE);
 						memset(attributeData, 0, PAGE_SIZE);
 						continue;
 					}
 
 					while(it->first == key) {
-
+                        void* mergedRecord = calloc(PAGE_SIZE, 1);
+                        int size = mergeRecords2((char*)this->leftBlockBuffer+it->second, rightTuple,this->leftAttributes, this->rightAttributes, mergedRecord);
+                        if(this->outputPageOffset + size >= PAGE_SIZE) {
+                            //TODO flush page to disk
+//                            outputFileHandle.appendPage(this->outputPage);
+                            memset(this->outputPage, 0, PAGE_SIZE);
+                            this->outputPageOffset = 0;
+                        }
+                        RID insertedRID;
+                        this->rbfm->insertRecord(this->outputFileHandle, this->joinAttributes, mergedRecord, insertedRID);
+//                        this->rbfm->insertRecordInMemory(this->outputFileHandle, this->joinAttributes, mergedRecord, insertedRID, this->outputPage);
+                        memcpy((char*)this->outputPage + this->outputPageOffset, mergedRecord, size);
+                        free(mergedRecord);
+                        this->outputPageOffset += size;
+                        it++;
 					}
 					break;
 				case TypeReal:
+                    float keyF = *(float*)((char*)attributeData + 1);
+                    multimap<float, int>::iterator itF = this->floatMap.lower_bound(keyF);
+                    if(itF->first != keyF) {
+                        memset(rightTuple, 0, PAGE_SIZE);
+                        memset(attributeData, 0 , PAGE_SIZE);
+                        continue;
+                    }
 
+                    while(itF->first == keyF) {
+                        void* mergedRecord = calloc(PAGE_SIZE, 1);
+                        int size = mergeRecords2((char*)this->leftBlockBuffer+itF->second, rightTuple, this->leftAttributes, this->rightAttributes, mergedRecord);
+                        if(this->outputPageOffset + size >= PAGE_SIZE) {
+//                            outputFileHandle.appendPage(this->outputPage);
+                            memset(this->outputPage, 0, PAGE_SIZE);
+                            this->outputPageOffset = 0;
+                        }
+                        RID insertedRID;
+                        this->rbfm->insertRecord(this->outputFileHandle, this->joinAttributes, mergedRecord, insertedRID);
+                        memcpy((char*)this->outputPage + this->outputPageOffset, mergedRecord, size);
+                        free(mergedRecord);
+                        this->outputPageOffset += size;
+                        itF++;
+                    }
 					break;
 				case TypeVarChar:
-
+                    int keySize = *(int*)((char*)attributeData + 1);
+                    char* charKey = (char*) calloc(keySize, 1);
+                    memcpy(charKey, (char*)attributeData + 1 + sizeof(int), keySize);
+                    string keyS = string(charKey, keySize);
+                    multimap<string, int>::iterator itS = this->stringMap.lower_bound(keyS);
+                    if(itS->first != keyS) {
+                        memset(rightTuple, 0, PAGE_SIZE);
+                        memset(attributeData, 0, PAGE_SIZE);
+                        continue;
+                    }
+                    while(itS->first == keyS) {
+                        void* mergedRecord = calloc(PAGE_SIZE, 1);
+                        int size = mergeRecords2((char*)this->leftBlockBuffer+itS->second, rightTuple, this->leftAttributes, this->rightAttributes, mergedRecord);
+                        if(this->outputPageOffset + size >= PAGE_SIZE) {
+//                            outputFileHandle.appendPage(this->outputPage);
+                            memset(this->outputPage, 0, PAGE_SIZE);
+                            this->outputPageOffset = 0;
+                        }
+                        RID insertedRID;
+                        this->rbfm->insertRecord(this->outputFileHandle, this->joinAttributes, mergedRecord, insertedRID);
+                        memcpy((char*)this->outputPage + this->outputPageOffset, mergedRecord, size);
+                        free(mergedRecord);
+                        this->outputPageOffset += size;
+                        itS++;
+                    }
 					break;
 			}
 		}
@@ -536,9 +673,19 @@ RC BNLJoin::joinTables() {
 	}
 
 	free(rightTuple);
+    free(attributeData);
 }
 
+int BNLJoin::autoIncId = 0;
+
 BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &condition, const unsigned numPages) {
+
+    this->outputFileName = condition.lhsAttr + "_" + condition.rhsAttr + "_" + autoIncId;
+    cout << "Joing output file name is: " << this->outputFileName;
+    this->rbfm = RecordBasedFileManager::instance();
+    this->rbfm->createFile(outputFileName);
+    this->rbfm->openFile(outputFileName, this->outputFileHandle);
+
 	this->leftInIter = leftIn;
 	this->rightInIter = rightIn;
 	this->condition = condition;
@@ -551,14 +698,18 @@ BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &conditio
 	leftIn->getAttributes(this->leftAttributes);
 	rightIn->getAttributes(this->rightAttributes);
 
+    vector<string> joinAttributeNames;
+
 	for(int i=0;i<this->leftAttributes.size();i++) {
 		if(this->leftAttributes[i].name == this->condition.lhsAttr) {
 			this->joinAttribute = this->leftAttributes[i];
 		}
 		this->joinAttributes.push_back(this->leftAttributes[i]);
+        joinAttributeNames.push_back(this->leftAttributes[i].name);
 	}
 	for(int i=0;i<this->rightAttributes.size();i++) {
 		this->joinAttributes.push_back(this->rightAttributes[i]);
+        joinAttributeNames.push_back(this->rightAttributes[i].name);
 	}
 
 	this -> leftBlockBuffer = calloc(this->numPages*PAGE_SIZE, 1);
@@ -567,8 +718,120 @@ BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &conditio
 
 	this->joinTables();
 
+    this->rbfm->scan(this->outputFileHandle, this->joinAttributes, "", NO_OP, NULL, joinAttributeNames, rbfm_scanIterator);
+
 }
 
+RC BNLJoin::getNextTuple(void *data) {
+    RID rid;
+    return this->rbfm_scanIterator.getNextRecord(rid, data);
+}
+
+BNLJoin::~BNLJoin() {
+    free(leftBlockBuffer);
+    free(outputPage);
+    rbfm_scanIterator.close();
+    this->rbfm->closeFile(this->outputFileHandle);
+}
+
+void BNLJoin::getAttributes(vector<Attribute> &attrs) const {
+    attrs.clear();
+    attrs = this->joinAttributes;
+}
+
+
+void* mergeRecords(void* left, void* right, vector<Attribute> leftAttrs, vector<Attribute> rightAttrs){
+    int nullsLeft = ceil((double) leftAttrs.size() / CHAR_BIT);
+    int nullsRight = ceil((double) rightAttrs.size() / CHAR_BIT);
+    int nullsTotal = leftAttrs.size() + rightAttrs.size();
+
+	int leftOffset = 0;
+	leftOffset += nullsLeft;
+	int rightOffset = 0;
+	rightOffset += nullsRight;
+
+    vector<unsigned int> bitVectorLeft;
+    for(int i = 0; i < nullsLeft; i++){
+        std::bitset<8> x(*((char *)left + i));
+        for(int j = x.size() - 1; j >= 0; j--) {
+            unsigned int bitValue = x[j];
+            bitVectorLeft.push_back(bitValue);
+        }
+    }
+    vector<unsigned int> bitVectorRight;
+    for(int i = 0; i < nullsRight; i++){
+        std::bitset<8> x(*((char *)right + i));
+        for(int j = x.size() - 1; j >= 0; j--) {
+            unsigned int bitValue = x[j];
+            bitVectorRight.push_back(bitValue);
+        }
+    }
+
+    int i = 0;
+	while(i < leftAttrs.size()){
+		if(bitVectorLeft[i] == 0){
+			if(leftAttrs[i].type == TypeInt || leftAttrs[i].type == TypeReal) {
+				leftOffset += sizeof(int);
+			} else {
+				int len = *(int *)((char *) left + leftOffset);
+				leftOffset += sizeof(int);
+				leftOffset += len;
+			}
+		}
+		i++;
+	}
+	i = 0;
+	while(i < rightAttrs.size()){
+		if(bitVectorRight[i] == 0){
+			if(rightAttrs[i].type == TypeInt || rightAttrs[i].type == TypeReal) {
+				rightOffset += sizeof(int);
+			} else {
+				int len = *(int *)((char *) left + rightOffset);
+				rightOffset += sizeof(int);
+				rightOffset += len;
+			}
+		}
+		i++;
+	}
+
+	int offset = 0;
+	void* returnedData = calloc(nullsTotal + leftOffset + rightOffset, 1);
+
+	// set the null bits here
+    int numLeft = 0;
+    int numRight = 0;
+    int numTotal = 0;
+    	while(numLeft < bitVectorLeft.size()) {
+    		if(bitVectorLeft[numLeft] == 1) {
+    			char bite = *((char*)returnedData + numTotal/8);
+    			bite |= 1<<(8-numTotal%8-1);
+    			memcpy((char*) returnedData + numTotal/8, &bite, 1);
+    		}
+    		numLeft++;
+    		numTotal++;
+    	}
+    	while(numRight < bitVectorRight.size()) {
+		if(bitVectorRight[numRight] == 1) {
+			char bite = *((char*)returnedData + numTotal/8);
+			bite |= 1<<(8-numTotal%8-1);
+			memcpy((char*) returnedData + numTotal/8, &bite, 1);
+		}
+		numRight++;
+		numTotal++;
+    	}
+    	/////
+
+	offset += nullsTotal;
+	memcpy((char*) returnedData + offset, (char *) left + nullsLeft, leftOffset);
+	offset += leftOffset;
+	memcpy((char*) returnedData + offset, (char *) right + nullsRight, rightOffset);
+	return returnedData;
+
+}
+
+//RC INLJoin::getNextTuple(void *data) {
+//	return QE_EOF;
+//}
 
 
 

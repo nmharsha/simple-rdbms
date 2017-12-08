@@ -246,11 +246,12 @@ class BNLJoin : public Iterator {
                const unsigned numPages       // # of pages that can be loaded into memory,
 			                                 //   i.e., memory block size (decided by the optimizer)
         );
-        ~BNLJoin(){};
+        ~BNLJoin();
 
         RC getNextTuple(void *data);
         // For attribute in vector<Attribute>, name it as rel.attr
         void getAttributes(vector<Attribute> &attrs) const;
+        static int autoIncId;
         Iterator* leftInIter;
         TableScan* rightInIter;
         Condition condition;
@@ -259,18 +260,21 @@ class BNLJoin : public Iterator {
         vector<Attribute> rightAttributes;
         vector<Attribute> joinAttributes;
 
+        string outputFileName;
+        RecordBasedFileManager *rbfm;
+        RBFM_ScanIterator rbfm_scanIterator;
+        FileHandle outputFileHandle;
+
         Attribute joinAttribute;
 
         void* leftBlockBuffer;
         void* outputPage;
+        int outputPageOffset;
         void* rightInputPage;
         int leftOffset;
         multimap<int, int> intMap;
         multimap<float, int> floatMap;
         multimap<string, int> stringMap;
-
-
-    long createLeftBuffer();
 
     RC joinTables();
 
@@ -286,12 +290,23 @@ class INLJoin : public Iterator {
         INLJoin(Iterator *leftIn,           // Iterator of input R
                IndexScan *rightIn,          // IndexScan Iterator of input S
                const Condition &condition   // Join condition
-        ){};
+        );
         ~INLJoin(){};
 
-        RC getNextTuple(void *data){return QE_EOF;};
+        RC getNextTuple(void *data);
         // For attribute in vector<Attribute>, name it as rel.attr
         void getAttributes(vector<Attribute> &attrs) const{};
+
+        Iterator* leftInIter;
+        IndexScan* rightInIter;
+        Condition condition;
+
+        vector<Attribute> leftAttributes;
+        vector<Attribute> rightAttributes;
+        vector<Attribute> joinAttributes;
+
+        Attribute joinAttribute;
+
 };
 
 // Optional for everyone. 10 extra-credit points
