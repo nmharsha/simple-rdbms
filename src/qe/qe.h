@@ -293,7 +293,7 @@ class INLJoin : public Iterator {
         );
         ~INLJoin(){};
 
-        RC getNextTuple(void *data);
+        RC getNextTuple(void *data){return -1;};
         // For attribute in vector<Attribute>, name it as rel.attr
         void getAttributes(vector<Attribute> &attrs) const{};
 

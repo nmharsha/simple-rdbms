@@ -2836,6 +2836,9 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
 
         void* attributeData = calloc(200, 1); //TODO check this value
         int result = recordBasedFileManager->readAttributeFromBuffer(*fileHandle, recordDescriptor, currentReadRid, conditionAttribute, attributeData, bufferPage);
+//        if(result == -1) {
+//            cout << "Something terrible happended here in RBFM get next record" << endl;
+//        }
         if(compOp == NO_OP) {
             int offset = 0;
             offset += ceil((double)attributeNames.size()/CHAR_BIT);
@@ -2843,6 +2846,9 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
                 Attribute a = getAttributeWithName(*it, recordDescriptor);
                 void* recordAttribute = calloc(200, 1); //TODO check 200
                 int result1 = recordBasedFileManager->readAttributeFromBuffer(*fileHandle, recordDescriptor, currentReadRid, *it, recordAttribute, bufferPage);
+                if(result1 == -1) {
+                    cout << "This is the real issue\n";
+                }
                 char attributeNullDescriptor = *(char*)recordAttribute;
                 int iteratorPosition = it - attributeNames.begin();
                 if(attributeNullDescriptor > 0) {

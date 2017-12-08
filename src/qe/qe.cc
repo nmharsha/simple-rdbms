@@ -391,11 +391,12 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
 }
 
 int BNLJoin::getTupleSize(void* tuple) {
-	int offset = 0;
-	int size = 0;
+    int numOfNullBytes = (int)ceil((double)this->leftAttributes.size()/8);
+    cout << "Num of null bytes is: " << numOfNullBytes << endl;
+	int offset = numOfNullBytes;
+	int size = numOfNullBytes;
 	for(int i=0;i<this->leftAttributes.size();i++) {
 
-		int numOfNullBytes = (int)ceil((double)this->leftAttributes.size()/8);
 		char nullByte = *((char*)tuple + i/8);
 		bool nullBitSet = (nullByte & (1<<((8-i%8-1)))) > 0;
 
@@ -416,12 +417,14 @@ int BNLJoin::getTupleSize(void* tuple) {
 
 void getAttributeFromRecord(const void* data, void* attributeData, string attributeName, vector<Attribute> attributes) {
 	int offset = 0;
+    offset += 1;
 	for(int i=0;i < attributes.size(); i++) {
 		int numOfNullBytes = (int)ceil((double)attributes.size()/8);
 		char nullByte = *((char*)data + i/8);
 		bool nullBitSet = (nullByte & (1<<((8-i%8-1)))) > 0;
-        cout << "Null bit set. This shouldn't happen in an index: " << nullBitSet << endl;
 		if(attributes[i].name == attributeName) {
+            if(nullBitSet)
+                cout << "Null bit set. This shouldn't happen in an index: " << nullBitSet << " and null byte is " << nullByte << " and attribute is " << attributes[i].name << endl;
 			if(attributes[i].type == TypeInt || attributes[i].type == TypeReal) {
 				*(char*)attributeData = 0;
 				memcpy((char*)attributeData + 1, (char*)data + offset, sizeof(int));
@@ -450,13 +453,15 @@ RC BNLJoin::fillBuffer() {
 	while(this->leftOffset <= this->numPages*PAGE_SIZE) {
 		result = this->leftInIter->getNextTuple((char*)this->leftBlockBuffer + this->leftOffset);
 		if(result == QE_EOF) {
+			cout << "The end\n";
 			return -1;
 		}
 
-		getAttributeFromRecord((char*)this->leftBlockBuffer + this->leftOffset, attributeData, this->joinAttribute.name, this->leftAttributes);
+		getAttributeFromRecord((char*)this->leftBlockBuffer + this->leftOffset, attributeData, this->condition.lhsAttr, this->leftAttributes);
 
 		switch(this->joinAttribute.type) {
 			case TypeInt:
+				cout << "Inserting into map: " << *(int*)((char*)attributeData + 1) << endl;
 				this->intMap.insert(std::pair<int, int>(*(int*)((char*)attributeData + 1), this->leftOffset));
 				break;
 			case TypeReal:
@@ -482,7 +487,7 @@ RC BNLJoin::fillBuffer() {
 int mergeRecords2(void* left, void* right, vector<Attribute> leftAttrs, vector<Attribute> rightAttrs, void* returnedData){
     int nullsLeft = ceil((double) leftAttrs.size() / CHAR_BIT);
     int nullsRight = ceil((double) rightAttrs.size() / CHAR_BIT);
-    int nullsTotal = leftAttrs.size() + rightAttrs.size();
+    int nullsTotal = ceil((double)(leftAttrs.size() + rightAttrs.size())/CHAR_BIT);
 
     int leftOffset = 0;
     leftOffset += nullsLeft;
@@ -561,10 +566,11 @@ int mergeRecords2(void* left, void* right, vector<Attribute> leftAttrs, vector<A
     /////
 
     offset += nullsTotal;
-    memcpy((char*) returnedData + offset, (char *) left + nullsLeft, leftOffset);
-    offset += leftOffset;
-    memcpy((char*) returnedData + offset, (char *) right + nullsRight, rightOffset);
-    return nullsTotal + leftOffset + rightOffset;
+    memcpy((char*) returnedData + offset, (char *) left + nullsLeft, leftOffset - nullsLeft);
+    offset += (leftOffset - nullsLeft);
+    memcpy((char*) returnedData + offset, (char *) right + nullsRight, rightOffset - nullsRight);
+//	return returnedData;
+    return nullsTotal + (leftOffset - nullsLeft) + (rightOffset - nullsRight);
 }
 
 RC BNLJoin::joinTables() {
@@ -577,95 +583,110 @@ RC BNLJoin::joinTables() {
         this->intMap.clear();
         this->floatMap.clear();
         this->stringMap.clear();
+        memset(this->leftBlockBuffer, 0, this->numPages*PAGE_SIZE);
 //		break;
 		result = fillBuffer();
-		if(result == -1 || this->leftOffset == 0) {
-            break;
+		if(result == -1) {
+            if(this->leftOffset == 0) {
+                break;
+            }
 		}
 
 		while(this->rightInIter->getNextTuple(rightTuple) != -1) {
-			getAttributeFromRecord(rightTuple, attributeData, this->joinAttribute.name, this->rightAttributes);
+			getAttributeFromRecord(rightTuple, attributeData, this->condition.rhsAttr, this->rightAttributes);
+//            getAttributeFromRecord((char*)this->leftBlockBuffer + this->leftOffset, attributeData, this->joinAttribute.name, this->leftAttributes);
 
 			switch(this->joinAttribute.type) {
-				case TypeInt:
-					int key = *(int*)((char*)attributeData + 1);
-					multimap<int, int>::iterator it = this->intMap.lower_bound(key);
-					if(it->first != key) {
-						memset(rightTuple, 0, PAGE_SIZE);
-						memset(attributeData, 0, PAGE_SIZE);
-						continue;
-					}
+				case TypeInt: {
+                    int key = *(int *) ((char *) attributeData + 1);
+//                    cout << "Key obtained from right is: " << key << endl;
+                    multimap<int, int>::iterator it = this->intMap.lower_bound(key);
+                    if (it->first != key) {
+                        memset(rightTuple, 0, PAGE_SIZE);
+                        memset(attributeData, 0, PAGE_SIZE);
+                        continue;
+                    }
 
-					while(it->first == key) {
-                        void* mergedRecord = calloc(PAGE_SIZE, 1);
-                        int size = mergeRecords2((char*)this->leftBlockBuffer+it->second, rightTuple,this->leftAttributes, this->rightAttributes, mergedRecord);
-                        if(this->outputPageOffset + size >= PAGE_SIZE) {
+                    while (it->first == key) {
+//                        cout << "Insertion happening" << endl;
+                        void *mergedRecord = calloc(PAGE_SIZE, 1);
+                        int size = mergeRecords2((char *) this->leftBlockBuffer + it->second, rightTuple,
+                                                 this->leftAttributes, this->rightAttributes, mergedRecord);
+                        if (this->outputPageOffset + size >= PAGE_SIZE) {
                             //TODO flush page to disk
 //                            outputFileHandle.appendPage(this->outputPage);
                             memset(this->outputPage, 0, PAGE_SIZE);
                             this->outputPageOffset = 0;
                         }
                         RID insertedRID;
-                        this->rbfm->insertRecord(this->outputFileHandle, this->joinAttributes, mergedRecord, insertedRID);
+                        this->rbfm->insertRecord(this->outputFileHandle, this->joinAttributes, mergedRecord,
+                                                 insertedRID);
 //                        this->rbfm->insertRecordInMemory(this->outputFileHandle, this->joinAttributes, mergedRecord, insertedRID, this->outputPage);
-                        memcpy((char*)this->outputPage + this->outputPageOffset, mergedRecord, size);
+                        memcpy((char *) this->outputPage + this->outputPageOffset, mergedRecord, size);
                         free(mergedRecord);
                         this->outputPageOffset += size;
                         it++;
-					}
-					break;
-				case TypeReal:
-                    float keyF = *(float*)((char*)attributeData + 1);
+                    }
+                    break;
+                }
+				case TypeReal: {
+                    float keyF = *(float *) ((char *) attributeData + 1);
                     multimap<float, int>::iterator itF = this->floatMap.lower_bound(keyF);
-                    if(itF->first != keyF) {
-                        memset(rightTuple, 0, PAGE_SIZE);
-                        memset(attributeData, 0 , PAGE_SIZE);
-                        continue;
-                    }
-
-                    while(itF->first == keyF) {
-                        void* mergedRecord = calloc(PAGE_SIZE, 1);
-                        int size = mergeRecords2((char*)this->leftBlockBuffer+itF->second, rightTuple, this->leftAttributes, this->rightAttributes, mergedRecord);
-                        if(this->outputPageOffset + size >= PAGE_SIZE) {
-//                            outputFileHandle.appendPage(this->outputPage);
-                            memset(this->outputPage, 0, PAGE_SIZE);
-                            this->outputPageOffset = 0;
-                        }
-                        RID insertedRID;
-                        this->rbfm->insertRecord(this->outputFileHandle, this->joinAttributes, mergedRecord, insertedRID);
-                        memcpy((char*)this->outputPage + this->outputPageOffset, mergedRecord, size);
-                        free(mergedRecord);
-                        this->outputPageOffset += size;
-                        itF++;
-                    }
-					break;
-				case TypeVarChar:
-                    int keySize = *(int*)((char*)attributeData + 1);
-                    char* charKey = (char*) calloc(keySize, 1);
-                    memcpy(charKey, (char*)attributeData + 1 + sizeof(int), keySize);
-                    string keyS = string(charKey, keySize);
-                    multimap<string, int>::iterator itS = this->stringMap.lower_bound(keyS);
-                    if(itS->first != keyS) {
+                    if (itF->first != keyF) {
                         memset(rightTuple, 0, PAGE_SIZE);
                         memset(attributeData, 0, PAGE_SIZE);
                         continue;
                     }
-                    while(itS->first == keyS) {
-                        void* mergedRecord = calloc(PAGE_SIZE, 1);
-                        int size = mergeRecords2((char*)this->leftBlockBuffer+itS->second, rightTuple, this->leftAttributes, this->rightAttributes, mergedRecord);
-                        if(this->outputPageOffset + size >= PAGE_SIZE) {
+
+                    while (itF->first == keyF) {
+                        void *mergedRecord = calloc(PAGE_SIZE, 1);
+                        int size = mergeRecords2((char *) this->leftBlockBuffer + itF->second, rightTuple,
+                                                 this->leftAttributes, this->rightAttributes, mergedRecord);
+                        if (this->outputPageOffset + size >= PAGE_SIZE) {
 //                            outputFileHandle.appendPage(this->outputPage);
                             memset(this->outputPage, 0, PAGE_SIZE);
                             this->outputPageOffset = 0;
                         }
                         RID insertedRID;
-                        this->rbfm->insertRecord(this->outputFileHandle, this->joinAttributes, mergedRecord, insertedRID);
-                        memcpy((char*)this->outputPage + this->outputPageOffset, mergedRecord, size);
+                        this->rbfm->insertRecord(this->outputFileHandle, this->joinAttributes, mergedRecord,
+                                                 insertedRID);
+                        memcpy((char *) this->outputPage + this->outputPageOffset, mergedRecord, size);
+                        free(mergedRecord);
+                        this->outputPageOffset += size;
+                        itF++;
+                    }
+                    break;
+                }
+				case TypeVarChar: {
+                    int keySize = *(int *) ((char *) attributeData + 1);
+                    char *charKey = (char *) calloc(keySize, 1);
+                    memcpy(charKey, (char *) attributeData + 1 + sizeof(int), keySize);
+                    string keyS = string(charKey, keySize);
+                    multimap<string, int>::iterator itS = this->stringMap.lower_bound(keyS);
+                    if (itS->first != keyS) {
+                        memset(rightTuple, 0, PAGE_SIZE);
+                        memset(attributeData, 0, PAGE_SIZE);
+                        continue;
+                    }
+                    while (itS->first == keyS) {
+                        void *mergedRecord = calloc(PAGE_SIZE, 1);
+                        int size = mergeRecords2((char *) this->leftBlockBuffer + itS->second, rightTuple,
+                                                 this->leftAttributes, this->rightAttributes, mergedRecord);
+                        if (this->outputPageOffset + size >= PAGE_SIZE) {
+//                            outputFileHandle.appendPage(this->outputPage);
+                            memset(this->outputPage, 0, PAGE_SIZE);
+                            this->outputPageOffset = 0;
+                        }
+                        RID insertedRID;
+                        this->rbfm->insertRecord(this->outputFileHandle, this->joinAttributes, mergedRecord,
+                                                 insertedRID);
+                        memcpy((char *) this->outputPage + this->outputPageOffset, mergedRecord, size);
                         free(mergedRecord);
                         this->outputPageOffset += size;
                         itS++;
                     }
-					break;
+                    break;
+                }
 			}
 		}
 		this->rightInIter->setIterator();
@@ -680,8 +701,8 @@ int BNLJoin::autoIncId = 0;
 
 BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &condition, const unsigned numPages) {
 
-    this->outputFileName = condition.lhsAttr + "_" + condition.rhsAttr + "_" + autoIncId;
-    cout << "Joing output file name is: " << this->outputFileName;
+    this->outputFileName = condition.lhsAttr + "_" + condition.rhsAttr + "_" + to_string(autoIncId);
+    cout << "Joining output file name is: " << this->outputFileName << endl;
     this->rbfm = RecordBasedFileManager::instance();
     this->rbfm->createFile(outputFileName);
     this->rbfm->openFile(outputFileName, this->outputFileHandle);
@@ -728,6 +749,7 @@ RC BNLJoin::getNextTuple(void *data) {
 }
 
 BNLJoin::~BNLJoin() {
+    cout << "Cleaning up!" << endl;
     free(leftBlockBuffer);
     free(outputPage);
     rbfm_scanIterator.close();

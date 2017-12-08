@@ -112,6 +112,7 @@ RC testCase_7() {
 	}
 
 	if (expectedResultCnt != actualResultCnt) {
+		cerr << expectedResultCnt << " " << actualResultCnt << endl;
 		cerr << "***** The number of returned tuple is not correct. *****" << endl;
 		rc = fail;
 	}
