@@ -115,6 +115,8 @@ public:
     //  !!! The same format is used for updateRecord(), the returned data of readRecord(), and readAttribute().
     // For example, refer to the Q8 of Project 1 wiki page.
     RC insertRecord(FileHandle &fileHandle, const vector<Attribute> &recordDescriptor, const void *data, RID &rid);
+    RC insertRecordInMemory(FileHandle &fileHandle, const vector<Attribute> &recordDescriptor, const void *data, RID &rid,
+                            void *pageRecord);
 
     RC readRecord(FileHandle &fileHandle, const vector<Attribute> &recordDescriptor, const RID &rid, void *data);
 

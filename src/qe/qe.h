@@ -32,7 +32,6 @@ struct Condition {
     Value   rhsValue;       // right-hand side value if bRhsIsAttr = FALSE
 };
 
-
 class Iterator {
     // All the relational operators and access methods are iterators.
     public:
@@ -237,6 +236,35 @@ class Project : public Iterator {
         vector<Attribute> attrs;
 };
 
+//class BNLJoin : public Iterator {
+//    // Block nested-loop join operator
+//    public:
+//        BNLJoin(Iterator *leftIn,            // Iterator of input R
+//               TableScan *rightIn,           // TableScan Iterator of input S
+//               const Condition &condition,   // Join condition
+//               const unsigned numPages       // # of pages that can be loaded into memory,
+//			                                 //   i.e., memory block size (decided by the optimizer)
+//        ){};
+//        ~BNLJoin(){};
+//
+//        RC getNextTuple(void *data){return QE_EOF;};
+//        // For attribute in vector<Attribute>, name it as rel.attr
+//        void getAttributes(vector<Attribute> &attrs) const{};
+////        Iterator* leftInIter;
+////        TableScan* rightInIter;
+////        Condition condition;
+////        unsigned numPages;
+////        vector<Attribute> leftAttributes;
+////        vector<Attribute> rightAttributes;
+////        vector<Attribute> joinAttributes;
+////
+////        Attribute joinAttribute;
+//
+//
+//};
+
+
+
 class BNLJoin : public Iterator {
     // Block nested-loop join operator
     public:
@@ -245,24 +273,46 @@ class BNLJoin : public Iterator {
                const Condition &condition,   // Join condition
                const unsigned numPages       // # of pages that can be loaded into memory,
 			                                 //   i.e., memory block size (decided by the optimizer)
-        ){};
-        ~BNLJoin(){};
+        );
+        ~BNLJoin();
 
-        RC getNextTuple(void *data){return QE_EOF;};
+        RC getNextTuple(void *data);
         // For attribute in vector<Attribute>, name it as rel.attr
-        void getAttributes(vector<Attribute> &attrs) const{};
-//        Iterator* leftInIter;
-//        TableScan* rightInIter;
-//        Condition condition;
-//        unsigned numPages;
-//        vector<Attribute> leftAttributes;
-//        vector<Attribute> rightAttributes;
-//        vector<Attribute> joinAttributes;
-//
-//        Attribute joinAttribute;
+        void getAttributes(vector<Attribute> &attrs) const;
+        static int autoIncId;
+        Iterator* leftInIter;
+        TableScan* rightInIter;
+        Condition condition;
+        unsigned numPages;
+        vector<Attribute> leftAttributes;
+        vector<Attribute> rightAttributes;
+        vector<Attribute> joinAttributes;
 
+        string outputFileName;
+        RecordBasedFileManager *rbfm;
+        RBFM_ScanIterator rbfm_scanIterator;
+        FileHandle outputFileHandle;
 
+        Attribute joinAttribute;
+
+        void* leftBlockBuffer;
+        void* outputPage;
+        int outputPageOffset;
+        void* rightInputPage;
+        int leftOffset;
+        multimap<int, int> intMap;
+        multimap<float, int> floatMap;
+        multimap<string, int> stringMap;
+
+    RC joinTables();
+
+    int getTupleSize(void* tuple);
+
+    RC fillBuffer();
 };
+
+
+
 
 
 class INLJoin : public Iterator {
@@ -311,6 +361,14 @@ class GHJoin : public Iterator {
 
 };
 
+struct groupStruct{
+	float min;
+	float max;
+	int count;
+	float sum;
+};
+
+
 class Aggregate : public Iterator {
     // Aggregation operator
     public:
@@ -327,7 +385,7 @@ class Aggregate : public Iterator {
                   Attribute aggAttr,           // The attribute over which we are computing an aggregate
                   Attribute groupAttr,         // The attribute over which we are grouping the tuples
                   AggregateOp op              // Aggregate operation
-        ){};
+        );
         ~Aggregate(){};
 
         RC getNextTuple(void *data);
@@ -336,7 +394,12 @@ class Aggregate : public Iterator {
         // output attrname = "MAX(rel.attr)"
         void getAttributes(vector<Attribute> &attrs) const;
         void getAttributeValue(void* data, void* returnedData, vector<Attribute> attrs, unsigned int currPos);
+        void getAttributeValueGrouped(void* data, void* returnedData, vector<Attribute> attrs, unsigned int currPos, unsigned int gPos, void* gAttrData, void* size);
 
+        map <int, groupStruct> groups;
+        Attribute groupAttribute;
+        std::map<int, groupStruct>::iterator mapIt;
+        bool gExists;
         int foundAlready;
         float sum;
         float max;
