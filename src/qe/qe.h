@@ -158,8 +158,14 @@ class IndexScan : public Iterator
             iter->close();
             delete iter;
             iter = new RM_IndexScanIterator();
-            rm.indexScan(tableName, attrName, lowKey, highKey, lowKeyInclusive,
+            cout<<*(int*)((char*)lowKey+1)<<endl;
+            RC rc = rm.indexScan(tableName, attrName, lowKey, highKey, lowKeyInclusive,
                            highKeyInclusive, *iter);
+
+            if(rc!= 0){
+                cout<<"IndexScan: setIterator: failure"<<endl;
+            }
+
         };
 
         RC getNextTuple(void *data)
@@ -312,37 +318,65 @@ class BNLJoin : public Iterator {
 };
 
 
-
-
-
 class INLJoin : public Iterator {
     // Index nested-loop join operator
-    public:
-        INLJoin(Iterator *leftIn,           // Iterator of input R
-               IndexScan *rightIn,          // IndexScan Iterator of input S
-               const Condition &condition   // Join condition
-        );
-        ~INLJoin(){};
+private:
+    static int autoIncId;
+    string outputFileName;
+    RecordBasedFileManager *rbfm;
+    RBFM_ScanIterator rbfm_scanIterator;
+    FileHandle outputFileHandle;
 
-        RC getNextTuple(void *data);
-        // For attribute in vector<Attribute>, name it as rel.attr
-        void getAttributes(vector<Attribute> &attrs) const;
+public:
+    vector<Attribute> leftAttrs;
+    vector<Attribute> rightAttrs;
+    vector<Attribute> joinAttrs;
 
-        Iterator* leftInIter;
-        IndexScan* rightInIter;
-        Condition condition;
+    INLJoin(Iterator *leftIn,           // Iterator of input R
+            IndexScan *rightIn,          // IndexScan Iterator of input S
+            const Condition &condition   // Join condition
+    );
 
-        vector<Attribute> leftAttributes;
-        vector<Attribute> rightAttributes;
-        vector<Attribute> joinAttributes;
-        vector<void*> buffer;
+    ~INLJoin();
 
-        Attribute joinAttribute;
-        int mergeRecords(void* returnedData, void* left, void* right, vector<Attribute> leftAttrs, vector<Attribute> rightAttrs);
-        void getAttributeValue(void* returnedData, void* data, string &attrName, vector<Attribute> attrs);
+    RC getNextTuple(void *data);
 
-
+    // For attribute in vector<Attribute>, name it as rel.attr
+    void getAttributes(vector<Attribute> &attrs) const;
 };
+
+
+
+//class INLJoin : public Iterator {
+//    // Index nested-loop join operator
+//    private:
+//
+//    public:
+//        INLJoin(Iterator *leftIn,           // Iterator of input R
+//               IndexScan *rightIn,          // IndexScan Iterator of input S
+//               const Condition &condition   // Join condition
+//        );
+//        ~INLJoin(){};
+//
+//        RC getNextTuple(void *data);
+//        // For attribute in vector<Attribute>, name it as rel.attr
+//        void getAttributes(vector<Attribute> &attrs) const;
+//
+//        Iterator* leftInIter;
+//        IndexScan* rightInIter;
+//        Condition condition;
+//
+//        vector<Attribute> leftAttributes;
+//        vector<Attribute> rightAttributes;
+//        vector<Attribute> joinAttributes;
+//        vector<void*> buffer;
+//
+//        Attribute joinAttribute;
+//        int mergeRecords(void* returnedData, void* left, void* right, vector<Attribute> leftAttrs, vector<Attribute> rightAttrs);
+//        void getAttributeValue(void* returnedData, void* data, string &attrName, vector<Attribute> attrs);
+//
+//
+//};
 
 // Optional for everyone. 10 extra-credit points
 class GHJoin : public Iterator {
@@ -397,8 +431,10 @@ class Aggregate : public Iterator {
         void getAttributeValueGrouped(void* data, void* returnedData, vector<Attribute> attrs, unsigned int currPos, unsigned int gPos, void* gAttrData, void* size);
 
         map <int, groupStruct> groups;
+        map <int, int> groupsMin;
         Attribute groupAttribute;
         std::map<int, groupStruct>::iterator mapIt;
+        std::map<int, int>::iterator minIt;
         bool gExists;
         int foundAlready;
         float sum;

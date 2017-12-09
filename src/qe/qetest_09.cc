@@ -39,6 +39,7 @@ RC testCase_9() {
 	bool nullBit = false;
 	
 	while (inlJoin->getNextTuple(data) != QE_EOF) {
+		cout<<"Im here"<<endl;
 		int offset = 0;
 
 		// Is an attribute left.A NULL?
@@ -110,6 +111,7 @@ RC testCase_9() {
 
 		memset(data, 0, bufSize);
 		actualResultCnt++;
+		cout << "Cound is: " << actualResultCnt << endl;
 	}
 
 	if (expectedResultCnt != actualResultCnt) {

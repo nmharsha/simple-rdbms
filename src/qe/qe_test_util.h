@@ -1058,10 +1058,28 @@ clean_up:
 
 int createIndexforLeftB() {
 	return rm->createIndex("left", "B");
+//	IndexManager* indexManager = IndexManager::instance();
+//	IXFileHandle ixFileHandle;
+//	indexManager->openFile("right_C", ixFileHandle);
+//	Attribute a;
+//	a.name = "B";
+//	a.type=TypeInt;
+//	a.length = 4;
+//	indexManager->printBtree(ixFileHandle, a);
+//    return 0;
 }
 
 int createIndexforLeftC() {
-	return rm->createIndex("left", "C");
+	 rm->createIndex("left", "C");
+    	IndexManager* indexManager = IndexManager::instance();
+	IXFileHandle ixFileHandle;
+	indexManager->openFile("left_C", ixFileHandle);
+	Attribute a;
+	a.name = "C";
+	a.type=TypeReal;
+	a.length = 4;
+	indexManager->printBtree(ixFileHandle, a);
+    return 0;
 }
 
 int createIndexforLeftB2() {
@@ -1085,7 +1103,16 @@ int createIndexforRightB() {
 }
 
 int createIndexforRightC() {
-	return rm->createIndex("right", "C");
+	rm->createIndex("right", "C");
+    IndexManager* indexManager = IndexManager::instance();
+    IXFileHandle ixFileHandle;
+    indexManager->openFile("right_C", ixFileHandle);
+    Attribute a;
+    a.name = "C";
+    a.type=TypeReal;
+    a.length = 4;
+    indexManager->printBtree(ixFileHandle, a);
+    return 0;
 }
 
 int createIndexforLargeLeftB() {

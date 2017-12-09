@@ -1494,6 +1494,7 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
     ix_ScanIterator.scanPageData = calloc(PAGE_SIZE, 1);
 
     PageNum root = indexRootNodeMap[ixfileHandle.fileName];
+    cout << "Root value is: " << root << endl;
 //    cout << "index 3:::" << endl;
     cout << ixfileHandle.readPage(root, ix_ScanIterator.scanPageData) << endl;
 //    cout << "index 4" << endl;
@@ -1594,15 +1595,15 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
             if (debug10) cout << "Setting Offset: " << offset << endl;
             ix_ScanIterator.scanOffset = offset;
             if(offset >= lastOffset) {
-                if (debug10) cout << "Terminating already in scan" << endl;
+                cout << "Terminating already in scan" << endl;
                 ix_ScanIterator.end = true;
             }
             if (debug10) cout << "End of iterator is: " << ix_ScanIterator.end << endl;
             return 0;
         }
-        int low = *(float *) ix_ScanIterator.lowKey;
-        if (debug10) cout << "Low: " << low << endl;
-        if (debug10) cout << "Last off set: " << lastOffset << endl;
+        float low = *(float *) ((char*) ix_ScanIterator.lowKey);
+        cout << "Low: " << low << endl;
+        cout << "Last off set: " << lastOffset << endl;
 
         float key = getRealValueAtOffset(ix_ScanIterator.scanPageData, offset);
         //	float low2 = *(float *) ix_ScanIterator.lowKey;
