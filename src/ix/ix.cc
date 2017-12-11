@@ -59,6 +59,7 @@ IndexManager::~IndexManager() {
 }
 
 RC IndexManager::createFile(const string &fileName) {
+    indexRootNodeMap[fileName] = 0;
     return pagedFileManager -> createFile(fileName);
 }
 
@@ -1128,7 +1129,8 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 //    {
 //        if (debug10) cout << "Key: " << iter->first << endl << "Values: "<< iter->second << endl;
 //    }
-    bool truth = it == indexRootNodeMap.end();
+//    bool truth = it == indexRootNodeMap.end();
+    bool truth = (ixfileHandle.getPersistedAppendCounter() == 0);
     if(truth) {
         void* firstPageData = calloc(PAGE_SIZE, 1);
         unsigned short freeSpace = PAGE_SIZE - NEXT_PAGE_OFFSET;
@@ -1460,7 +1462,7 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
 
 //    ix_ScanIterator.ixfileHandle.
     IndexManager* indexManager = IndexManager::instance();
-    indexManager->printBtree(*(ix_ScanIterator.ixfileHandle), attribute);
+//    indexManager->printBtree(*(ix_ScanIterator.ixfileHandle), attribute);
 
     ix_ScanIterator.attribute = attribute;
 //    cout << "index 1" << endl;

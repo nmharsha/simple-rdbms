@@ -228,7 +228,7 @@ Project::Project(Iterator *input, const vector<string> &attrNames){
 //			cout << "at I, J: " << i << ", " << j << endl;
 //			cout << attrs[j].name << endl;
 //			cout << attrNames[i] << endl;
-			if(attrNames[i].compare(attrs[j].name)) {
+			if(attrNames[i]==(attrs[j].name)) {
 				proj.push_back(attrs[j]);
 			}
 		}
@@ -245,7 +245,7 @@ RC Project::getNextTuple(void *data) {
 		return QE_EOF;
 	}
 //	cout << "before getting attsssss" << endl;
-	getAttributeValuesForProject(record, data);
+	getAttributeValuesForProject2(record, data);
 //	cout << "Here again " << endl;
 	free(record);
 	return 0;
@@ -253,8 +253,77 @@ RC Project::getNextTuple(void *data) {
 
 void Project::getAttributes(vector<Attribute> &attrs) const {
 	attrs.clear();
-	attrs = this->attrs;
+	attrs = this->proj;
 }
+
+
+
+void Project::getAttributeValuesForProject2(void* data, void* returnedData){
+
+	int nullFieldsIndicatorActualSize = ceil((double) attrs.size() / CHAR_BIT);
+
+	int returnNullBytes = ceil((double) proj.size() / CHAR_BIT);
+
+	vector<unsigned int> bitVector;
+	for(int i = 0; i < nullFieldsIndicatorActualSize; i++){
+		std::bitset<8> x(*((char *)data + i));
+		for(int j = x.size() - 1; j >= 0; j--) {
+			unsigned int bitValue = x[j];
+			bitVector.push_back(bitValue);
+		}
+	}
+	for(int i = 0; i < nullFieldsIndicatorActualSize; i++){
+		char c = 0;
+		memcpy((char*)returnedData + i, &c, 1);
+	}
+	int offset = nullFieldsIndicatorActualSize;
+	int returnOffset = returnNullBytes;
+
+	int counter = 0;
+	int projCounter = 0;
+
+	// set null bytes here
+
+
+	////
+	while(counter < attrs.size() && projCounter < proj.size()) {
+		Attribute curr = attrs[counter];
+
+		int foundAttr = false;
+		if(curr.name == proj[projCounter].name) {
+			foundAttr = true;
+			projCounter++;
+		}
+		if(bitVector[counter] == 0){
+			if(curr.type == TypeInt) {
+				if(foundAttr) {
+					void *entryPtr;
+					entryPtr = calloc(sizeof(int), 1);
+					memcpy(entryPtr, (char *) data + offset, sizeof(int));
+					memcpy((char *) returnedData + returnOffset, entryPtr, sizeof(int));
+					returnOffset += sizeof(int);
+					free(entryPtr);
+				}
+				offset += sizeof(int);
+
+			} else if(curr.type == TypeReal) {
+				if(foundAttr) {
+					void *entryPtr;
+					entryPtr = calloc(sizeof(int), 1);
+					memcpy(entryPtr, (char *) data + offset, sizeof(int));
+					memcpy((char *) returnedData + returnOffset, entryPtr, sizeof(int));
+					returnOffset += sizeof(int);
+					free(entryPtr);
+				}
+				offset += sizeof(int);
+			} else if(curr.type == TypeVarChar){
+				cout << "Not here though\n\n\n";
+			}
+		}
+		counter++;
+	}
+}
+
 
 //gets the attribute values for Projection from the data - in the form of returnedData
 void Project::getAttributeValuesForProject(void* data, void* returnedData){
@@ -305,7 +374,9 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
                 entryPtr = calloc(sizeof(int), 1);
                 memcpy(entryPtr, (char*) data + offset, sizeof(int));
 //                projAttrs[currAtt] = entryPtr;
-                memcpy((char*)projAttrs[name], entryPtr, sizeof(int));
+				memcpy((char*)search->second, entryPtr, sizeof(int));
+
+//				memcpy((char*)projAttrs[name], entryPtr, sizeof(int));
                 offset += sizeof(int);
 //                cout << *(int *) entryPtr;
                 free(entryPtr);
@@ -318,7 +389,9 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
                 entryPtr = calloc(sizeof(float), 1);
                 memcpy(entryPtr, (char*) data + offset, sizeof(float));
                 //projAttrs[currAtt] = entryPtr;
-                memcpy((char*)projAttrs[name], entryPtr, sizeof(float));
+				memcpy((char*)search->second, entryPtr, sizeof(int));
+
+				//memcpy((char*)projAttrs[name], entryPtr, sizeof(float));
                 offset += sizeof(float);
 //                cout << *(float *) entryPtr;
                 free(entryPtr);
@@ -341,7 +414,10 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
                 void* attrPtr = calloc(size, 1);
                 memcpy( attrPtr , (char*)data+init, size);
                 //projAttrs[currAtt] = entryPtr;
-                memcpy((char*)projAttrs[name], attrPtr, size);
+
+				memcpy((char*)search->second, attrPtr, sizeof(int));
+
+//				memcpy((char*)projAttrs[name], attrPtr, size);
                 free(entryPtr);
                 free(attrPtr);
                 pSize += size;
@@ -381,12 +457,16 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
     		// set the bit values here...
 
     		/////////////////////////////
-    		if((curr.type == TypeInt || curr.type == TypeReal) && attrNullIndicator.find(curr.name)->second == 0) {
-    			memcpy((char*) returnedData + newOffset, (char*) projAttrs.find(curr.name)->second, sizeof(int));
+			auto aN = attrNullIndicator.find(curr.name);
+    		if((curr.type == TypeInt || curr.type == TypeReal) && aN->second == 0) {
+				auto s = projAttrs.find(curr.name);
+    			memcpy((char*) returnedData + newOffset, (char*) s->second, sizeof(int));
     			newOffset += sizeof(int);
-    		} else if(curr.type == TypeVarChar && attrNullIndicator.find(curr.name)->second == 0) {
-    			int len = *(int *)projAttrs.find(curr.name)->second;
-    			memcpy((char*) returnedData + newOffset, (char*) projAttrs.find(curr.name)->second, sizeof(int) + len);
+    		} else if(curr.type == TypeVarChar && aN->second == 0) {
+				auto s = projAttrs.find(curr.name);
+
+				int len = *(int *)s->second;
+    			memcpy((char*) returnedData + newOffset, (char*) s->second, sizeof(int) + len);
     			newOffset += (sizeof(int) + len);
     		}
     }
@@ -558,10 +638,10 @@ INLJoin::INLJoin(Iterator *leftIn,           // Iterator of input R
 	while(leftIn->getNextTuple(leftRecord) == 0) {
 		void* attributeData = calloc(PAGE_SIZE, 1);
 
-//        cout<<"key = "<<*(float*)((char*)leftRecord+9)<<endl;
+        cout<<"key = "<<*(float*)((char*)leftRecord+5)<<endl;
 
 		getAttributeFromRecord(leftRecord, attributeData, condition.lhsAttr, leftAttrs);
-//        cout<<"lowkey = "<<*(float*)((char*)attributeData+1)<<endl;
+        cout<<"lowkey = "<<*(float*)((char*)attributeData+1)<<endl;
 
         rightIn->setIterator((char*)attributeData+1, (char*)attributeData+1, true, true);
         IndexManager* indexManager = IndexManager::instance();

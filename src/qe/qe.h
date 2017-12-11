@@ -240,6 +240,8 @@ class Project : public Iterator {
         Iterator* projectInput;
         vector<Attribute> proj;
         vector<Attribute> attrs;
+
+    void getAttributeValuesForProject2(void *data, void *returnedData);
 };
 
 //class BNLJoin : public Iterator {

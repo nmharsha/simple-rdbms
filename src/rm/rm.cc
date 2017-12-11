@@ -471,6 +471,7 @@ RC RelationManager::getAttributes(const string &tableName, vector<Attribute> &at
 //NOTE: This is also present in qe take care
 RC RelationManager::getAttributeFromRecord(const void* data, void* attributeData, string attributeName, vector<Attribute> attributes) {
     int offset = 0;
+    offset+=1;
     for(int i=0;i < attributes.size(); i++) {
         int numOfNullBytes = (int)ceil((double)attributes.size()/8);
         char nullByte = *((char*)data + i/8);
@@ -572,7 +573,7 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
             }
             void* attributeData = calloc(PAGE_SIZE, 1);
             getAttributeFromRecord(data, attributeData, attributeNameInd, attributes);
-            indexManager -> insertEntry(ixFileHandle, getAttributeFromName(attributes, string(attributeNameInd)), attributeData, rid);
+            indexManager -> insertEntry(ixFileHandle, getAttributeFromName(attributes, string(attributeNameInd)), (char*)attributeData+1, rid);
             free(attributeData);
         }
     }

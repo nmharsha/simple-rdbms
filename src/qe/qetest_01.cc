@@ -30,6 +30,16 @@ int testCase_1() {
 		return rc;
 	}
 
+    IndexManager* indexManager = IndexManager::instance();
+    IXFileHandle ixFileHandle;
+    indexManager->openFile("left_B", ixFileHandle);
+    Attribute a;
+    a.name="B";
+    a.type = TypeInt;
+    a.length=4;
+    indexManager->printBtree(ixFileHandle, a);
+
+
 	// Create an index after inserting tuples - should reflect the currently existing tuples.
 	rc = createIndexforLeftC();
 	if (rc != success) {
