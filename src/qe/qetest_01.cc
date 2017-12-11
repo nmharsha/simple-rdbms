@@ -29,7 +29,6 @@ int testCase_1() {
 		cerr << "***** populateLeftTable() failed.  *****" << endl;
 		return rc;
 	}
-	cout << "Indexed after insertion" << endl;
 
 	// Create an index after inserting tuples - should reflect the currently existing tuples.
 	rc = createIndexforLeftC();

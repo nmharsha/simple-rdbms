@@ -1457,6 +1457,11 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
 //    cout << "index 2" << endl;
     ix_ScanIterator.end = false;
     ix_ScanIterator.ixfileHandle = &ixfileHandle;
+
+//    ix_ScanIterator.ixfileHandle.
+    IndexManager* indexManager = IndexManager::instance();
+    indexManager->printBtree(*(ix_ScanIterator.ixfileHandle), attribute);
+
     ix_ScanIterator.attribute = attribute;
 //    cout << "index 1" << endl;
     if(attribute.type == TypeInt || attribute.type == TypeReal) {
@@ -1494,9 +1499,9 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
     ix_ScanIterator.scanPageData = calloc(PAGE_SIZE, 1);
 
     PageNum root = indexRootNodeMap[ixfileHandle.fileName];
-    cout << "Root value is: " << root << endl;
 //    cout << "index 3:::" << endl;
-    cout << ixfileHandle.readPage(root, ix_ScanIterator.scanPageData) << endl;
+    //cout << ixfileHandle.readPage(root, ix_ScanIterator.scanPageData) << endl;
+    ixfileHandle.readPage(root, ix_ScanIterator.scanPageData);
 //    cout << "index 4" << endl;
 
     if (debug10) cout << "root page: " << root << endl;
@@ -1595,15 +1600,15 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
             if (debug10) cout << "Setting Offset: " << offset << endl;
             ix_ScanIterator.scanOffset = offset;
             if(offset >= lastOffset) {
-                cout << "Terminating already in scan" << endl;
+                if (debug10) cout << "Terminating already in scan" << endl;
                 ix_ScanIterator.end = true;
             }
             if (debug10) cout << "End of iterator is: " << ix_ScanIterator.end << endl;
             return 0;
         }
-        float low = *(float *) ((char*) ix_ScanIterator.lowKey);
-        cout << "Low: " << low << endl;
-        cout << "Last off set: " << lastOffset << endl;
+        int low = *(float *) ix_ScanIterator.lowKey;
+        if (debug10) cout << "Low: " << low << endl;
+        if (debug10) cout << "Last off set: " << lastOffset << endl;
 
         float key = getRealValueAtOffset(ix_ScanIterator.scanPageData, offset);
         //	float low2 = *(float *) ix_ScanIterator.lowKey;

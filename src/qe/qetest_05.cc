@@ -16,9 +16,9 @@ RC testCase_5() {
 	cerr << endl << "***** In QE Test Case 5 *****" << endl;
 
 	RC rc = success;
-	cout << "Fuck you " << endl;
+//	cout << "Fuck you " << endl;
 	IndexScan *is = new IndexScan(*rm, "right", "C");
-	cout << "after index scan " << endl;
+//	cout << "after index scan " << endl;
 	float compVal = 110.0;
 	float valueC = 0;
 
@@ -35,10 +35,10 @@ RC testCase_5() {
 
 	int expectedResultCnt = 15; // 110.00 ~ 124.00;
 	int actualResultCnt = 0;
-	cout << "Before filter create" << endl;
+//	cout << "Before filter create" << endl;
 	// Create Filter
 	Filter *filter = new Filter(is, cond);
-	cout << "After filter creation" << endl;
+//	cout << "After filter creation" << endl;
 	// Go over the data through iterator
 	void *data = malloc(bufSize);
 

@@ -1070,16 +1070,16 @@ int createIndexforLeftB() {
 }
 
 int createIndexforLeftC() {
-	 rm->createIndex("left", "C");
-    	IndexManager* indexManager = IndexManager::instance();
-	IXFileHandle ixFileHandle;
-	indexManager->openFile("left_C", ixFileHandle);
-	Attribute a;
-	a.name = "C";
-	a.type=TypeReal;
-	a.length = 4;
-	indexManager->printBtree(ixFileHandle, a);
-    return 0;
+	 return rm->createIndex("left", "C");
+//    	IndexManager* indexManager = IndexManager::instance();
+//	IXFileHandle ixFileHandle;
+//	indexManager->openFile("left_C", ixFileHandle);
+//	Attribute a;
+//	a.name = "C";
+//	a.type=TypeReal;
+//	a.length = 4;
+//	indexManager->printBtree(ixFileHandle, a);
+//    return 0;
 }
 
 int createIndexforLeftB2() {
@@ -1103,16 +1103,16 @@ int createIndexforRightB() {
 }
 
 int createIndexforRightC() {
-	rm->createIndex("right", "C");
-    IndexManager* indexManager = IndexManager::instance();
-    IXFileHandle ixFileHandle;
-    indexManager->openFile("right_C", ixFileHandle);
-    Attribute a;
-    a.name = "C";
-    a.type=TypeReal;
-    a.length = 4;
-    indexManager->printBtree(ixFileHandle, a);
-    return 0;
+	return rm->createIndex("right", "C");
+//    IndexManager* indexManager = IndexManager::instance();
+//    IXFileHandle ixFileHandle;
+//    indexManager->openFile("right_C", ixFileHandle);
+//    Attribute a;
+//    a.name = "C";
+//    a.type=TypeReal;
+//    a.length = 4;
+//    indexManager->printBtree(ixFileHandle, a);
+//    return 0;
 }
 
 int createIndexforLargeLeftB() {

@@ -44,7 +44,8 @@ RC Filter::getNextTuple(void *data){
 
 			return QE_EOF;
 		}
-
+		char c = 0;
+		memcpy((char*) data, &c, 1);
 		getAttributeValue(data, returnedData, filterAttrs, currPos, filterCondition.rhsValue.type);
 	} while(!check(returnedData));
 
@@ -357,11 +358,15 @@ void Project::getAttributeValuesForProject(void* data, void* returnedData){
     int newOffset = 0;
     int nulls = ceil((double) proj.size() / CHAR_BIT);
     newOffset += nulls;
-
+    char cZero = 0;
+    for(int i = 0; i < nulls; i++) {
+	memcpy((char*)returnedData + i, &cZero, 1);
+    }
     int attrCount = 0;
     	while(attrCount < proj.size()) {
     		Attribute currAttr = proj[attrCount];
-    		int value = attrNullIndicator.find(currAttr.name)->second;
+		auto search = attrNullIndicator.find(currAttr.name);
+    		int value = search->second;
     		if(value == 1) {
     			char bite = *((char*)returnedData + attrCount/8);
     			bite |= 1<<(8-attrCount%8-1);
@@ -400,8 +405,8 @@ void getAttributeFromRecord(const void* data, void* attributeData, string attrib
 		char nullByte = *((char*)data + i/8);
 		bool nullBitSet = (nullByte & (1<<((8-i%8-1)))) > 0;
 		if(attributes[i].name == attributeName) {
-            if(nullBitSet)
-                cout << "Null bit set. This shouldn't happen in an index: " << nullBitSet << " and null byte is " << nullByte << " and attribute is " << attributes[i].name << endl;
+//            if(nullBitSet)
+//                cout << "Null bit set. This shouldn't happen in an index: " << nullBitSet << " and null byte is " << nullByte << " and attribute is " << attributes[i].name << endl;
 			if(attributes[i].type == TypeInt || attributes[i].type == TypeReal) {
 				*(char*)attributeData = 0;
 				memcpy((char*)attributeData + 1, (char*)data + offset, sizeof(int));
@@ -484,9 +489,18 @@ int mergeRecords2(void* left, void* right, vector<Attribute> leftAttrs, vector<A
     int numLeft = 0;
     int numRight = 0;
     int numTotal = 0;
+
+    for(int k = 0; k < nullsTotal; k++) {
+	char setC = 0;
+	memcpy((char*)returnedData + k, & setC, 1);
+    }
+    
+
     while(numLeft < bitVectorLeft.size()) {
-        if(bitVectorLeft[numLeft] == 1) {
-            char bite = *((char*)returnedData + numTotal/8);
+        
+    if(bitVectorLeft[numLeft] == 1) {
+ //cout << "setting 1 at " << numTotal << endl;    
+        char bite = *((char*)returnedData + numTotal/8);
             bite |= 1<<(8-numTotal%8-1);
             memcpy((char*) returnedData + numTotal/8, &bite, 1);
         }
@@ -495,6 +509,8 @@ int mergeRecords2(void* left, void* right, vector<Attribute> leftAttrs, vector<A
     }
     while(numRight < bitVectorRight.size()) {
         if(bitVectorRight[numRight] == 1) {
+//cout << "setting 1 at " << numTotal << endl;
+
             char bite = *((char*)returnedData + numTotal/8);
             bite |= 1<<(8-numTotal%8-1);
             memcpy((char*) returnedData + numTotal/8, &bite, 1);
@@ -542,10 +558,10 @@ INLJoin::INLJoin(Iterator *leftIn,           // Iterator of input R
 	while(leftIn->getNextTuple(leftRecord) == 0) {
 		void* attributeData = calloc(PAGE_SIZE, 1);
 
-        cout<<"key = "<<*(float*)((char*)leftRecord+9)<<endl;
+//        cout<<"key = "<<*(float*)((char*)leftRecord+9)<<endl;
 
 		getAttributeFromRecord(leftRecord, attributeData, condition.lhsAttr, leftAttrs);
-        cout<<"lowkey = "<<*(float*)((char*)attributeData+1)<<endl;
+//        cout<<"lowkey = "<<*(float*)((char*)attributeData+1)<<endl;
 
         rightIn->setIterator((char*)attributeData+1, (char*)attributeData+1, true, true);
         IndexManager* indexManager = IndexManager::instance();
@@ -555,13 +571,21 @@ INLJoin::INLJoin(Iterator *leftIn,           // Iterator of input R
         com.name = condition.lhsAttr;
         com.type = TypeReal;
         com.length = 4;
-        indexManager->printBtree(ixFileHandle, com);
+//        indexManager->printBtree(ixFileHandle, com);
 
-        cout<<"here"<<endl;
+//        cout<<"here"<<endl;
 
 		while(rightIn->getNextTuple(rightRecord) == 0) {
 			void* mergedRecord = calloc(PAGE_SIZE, 1);
+			int nullBits = ceil((double)(leftAttrs.size() + rightAttrs.size())/CHAR_BIT);
+                        for(int i = 0; i < nullBits; i++) {
+                                char c = 0;
+  //                              cout << "Setting bit i: " << i << endl;
+                                memcpy((char*) mergedRecord + i, &c, 1);
+                        }
+    //                    cout << "done------------------------" << endl;
 			mergeRecords2(leftRecord, rightRecord, leftAttrs, rightAttrs,mergedRecord);
+
 			RID insertedRID;
 			rbfm->insertRecord(outputFileHandle, joinAttrs, mergedRecord,insertedRID);
 //            void *dummyRead = calloc(PAGE_SIZE, 1);
@@ -584,6 +608,14 @@ INLJoin::INLJoin(Iterator *leftIn,           // Iterator of input R
 RC INLJoin::getNextTuple(void *data) {
 
 	RID dummy;
+	int nullBits = ceil((double)(leftAttrs.size() + rightAttrs.size())/CHAR_BIT);
+                        for(int i = 0; i < nullBits; i++) {
+                                char c = 0;
+  //                              cout << "Setting bit i: " << i << endl;
+                                  memcpy((char*) data + i, &c, 1);
+                        }
+  //                                                                                          //                    cout << "done------------------------" << endl;
+  //
 	return rbfm_scanIterator.getNextRecord(dummy, data);
 
 //	void* leftData = calloc(PAGE_SIZE, 1);
@@ -836,6 +868,7 @@ Aggregate::Aggregate(Iterator *input,             // Iterator of input R
           Attribute groupAttr,         // The attribute over which we are grouping the tuples
           AggregateOp op              // Aggregate operation
 ){
+	vMap.clear();
 	groups.clear();
     groupsMin.clear();
 	gExists = true;
@@ -868,10 +901,10 @@ Aggregate::Aggregate(Iterator *input,             // Iterator of input R
 		int gPos = 0;
 		if(attrs.size() != 0) {
 			for(int i = 0; i < attrs.size(); i++) {
-				cout << "attrs[i].name: " << attrs[i].name << endl;
-				cout << "gourp name: " << groupAttribute.name << endl;
+//				cout << "attrs[i].name: " << attrs[i].name << endl;
+//				cout << "gourp name: " << groupAttribute.name << endl;
 				if(attrs[i].name.compare(groupAttribute.name) == 0) {
-					cout << "found at i: " << i << endl;
+//					cout << "found at i: " << i << endl;
 					gPos = i;
 					break;
 				}
@@ -885,9 +918,9 @@ Aggregate::Aggregate(Iterator *input,             // Iterator of input R
 		getAttributeValueGrouped(record, returnedAttrValue, attrs, pos, gPos, gAttrData, size);
 
 		int gSize = *(int *)((char*) size);
-		cout << "GSIZE is: " << gSize << endl;
-		cout << "String raw: " << (char*) gAttrData << endl;
-		cout << "String raw INT: " << *(int*)(gAttrData)<< endl;
+//		cout << "GSIZE is: " << gSize << endl;
+//		cout << "String raw: " << (char*) gAttrData << endl;
+//		cout << "String raw INT: " << *(int*)(gAttrData)<< endl;
 
 		//string gEntry((char*)gAttrData);
 		//gEntry.assign((char*)gAttrData, gSize);
@@ -897,40 +930,53 @@ Aggregate::Aggregate(Iterator *input,             // Iterator of input R
 		char nullIndicator;
 		memcpy(&nullIndicator, returnedAttrValue, 1);
 
+//		auto vSearch = vMap.find(gEntry);
+//		if(vSearch == vMap.end()) {
+//			vector<float> newVec;
+//			gEntry
+//		}
+//
 		//if the byte value is 0 then go to next iteration
 		if(nullIndicator == 128) {
 			continue;
 		}
 		groupStruct currG;
 		if(aggAttr.type == TypeInt) {
-			cout << "Map size before: " << groups.size() << endl;
+//			cout << "Map size before: " << groups.size() << endl;
 
-			float val = *(float *)((char*)returnedAttrValue + 1);
+			int val = *(int *)((char*)returnedAttrValue + 1);
 			auto search = groups.find(gEntry);
 			if (search == groups.end()){
+				vector<groupStruct> newV;
+				newV.clear();
                 groupsMin.insert(std::pair<int, int>(gEntry, INT_MAX));
-				groupStruct newGroup;
+
+                groupStruct newGroup;
 				newGroup.count = 0;
 				newGroup.max = INT_MIN;
 				newGroup.min = INT_MAX;
 				newGroup.sum = 0;
+				newV.push_back(newGroup);
+
 				groups.insert(std::pair<int, groupStruct>(gEntry, newGroup));
-				cout << "Inserting new" << endl;
-				cout << "Enter something" << endl;
-				int a;
+//				cout << "Inserting new" << endl;
+//				cout << "Enter something" << endl;
+//				int a;
 //				cin >> a;
-				cout << "Map size now: " << groups.size() << endl;
+//				cout << "Map size now: " << groups.size() << endl;
 			}
+			auto v = groups.find(gEntry);
+			currG = v->second;
 
-//			currG = groups.find(gEntry)->second;
-            currG.sum = groups.find(gEntry)->second.sum;
-            currG.min = groups.find(gEntry)->second.min;
-            currG.max = groups.find(gEntry)->second.max;
+//            currG.sum = groups.find(gEntry)->second.sum;
+//            currG.min = groups.find(gEntry)->second.min;
+//            currG.max = groups.find(gEntry)->second.max;
+//
+//            cout << "sum, min, max" << currG.sum << ", " << currG.min << ", " << currG.max << endl;
+//            std::map<int, int>::iterator minFind = groupsMin.find(gEntry);
+//
+//            cout << "minninin 1: " << groupsMin.find(gEntry)->second << endl;
 
-            cout << "sum, min, max" << currG.sum << ", " << currG.min << ", " << currG.max << endl;
-            std::map<int, int>::iterator minFind = groupsMin.find(gEntry);
-
-            cout << "minninin 1: " << groupsMin.find(gEntry)->second << endl;
 			currG.sum += val;
 			if(val < currG.min) {
 			 currG.min = val;
@@ -938,13 +984,24 @@ Aggregate::Aggregate(Iterator *input,             // Iterator of input R
 			if(val > currG.max) {
 			 currG.max = val;
 			}
-            minFind = groupsMin.find(gEntry);
-            if (minFind != groupsMin.end()) {
-                if(val < minFind->second) {
-                    minFind->second = val;
-                }
-            }
-            cout << "minninin 2: " << minFind->second << endl;
+			currG.count += 1;
+//			cout << "Before Inserting: " << endl;
+//    		cout << "Count, max, min, sum: " << endl;
+//    		cout << currG.count << endl;
+//    		cout << currG.max << endl;
+//    		cout << currG.min << endl;
+//    		cout << currG.sum << endl;
+
+    			groups[gEntry] = currG;
+//	        groups.insert(std::pair<int, groupStruct>(gEntry, currG));
+
+//            minFind = groupsMin.find(gEntry);
+//            if (minFind != groupsMin.end()) {
+//                if(val < minFind->second) {
+//                    minFind->second = val;
+//                }
+//            }
+//            cout << "minninin 2: " << minFind->second << endl;
 
         } else if(aggAttr.type == TypeReal) {
 			float val = *(float *)((char*)returnedAttrValue + 1);
@@ -958,10 +1015,13 @@ Aggregate::Aggregate(Iterator *input,             // Iterator of input R
 				groups.insert(std::pair<int, groupStruct>(gEntry, newGroup));
 			}
 //			currG = groups.find(gEntry)->second;
-            currG.sum = groups.find(gEntry)->second.sum;
-            currG.min = groups.find(gEntry)->second.min;
-            currG.max = groups.find(gEntry)->second.max;
-            cout << "sum, min, max" << currG.sum << ", " << currG.min << ", " << currG.max << endl;
+//            currG.sum = groups.find(gEntry)->second.sum;
+//            currG.min = groups.find(gEntry)->second.min;
+//            currG.max = groups.find(gEntry)->second.max;
+//            cout << "sum, min, max" << currG.sum << ", " << currG.min << ", " << currG.max << endl;
+
+			auto v = groups.find(gEntry);
+			currG = v->second;
 
             currG.sum += val;
 			if(val < currG.min) {
@@ -970,16 +1030,50 @@ Aggregate::Aggregate(Iterator *input,             // Iterator of input R
 			if(val > currG.max) {
 				currG.max = val;
 			}
+			currG.count += 1;
+//			cout << "Before Inserting: " << endl;
+//    		cout << "Count, max, min, sum: " << endl;
+//    		cout << currG.count << endl;
+//    		cout << currG.max << endl;
+//    		cout << currG.min << endl;
+//    		cout << currG.sum << endl;
+
+//    			groups[gEntry] = currG;
+			groups[gEntry] = currG;
+
+//	        groups.insert(std::pair<int, groupStruct>(gEntry, currG));
 		}
-        currG.count = groups.find(gEntry)->second.count;
-		currG.count = currG.count + 1;
-        groups.insert(std::pair<int, groupStruct>(gEntry, currG));
-        cout << "Groups Size" << groups.size() << endl;
-        if(groups.size() > 5) {
-            cout << "PROOOOOZBLLLLLEEEEEMMMMMM" << endl;
-        }
+//        currG.count = groups.find(gEntry)->second.count;
+//		currG.count = currG.count + 1;
+//        groups.insert(std::pair<int, groupStruct>(gEntry, currG));
+//        cout << "Groups Size" << groups.size() << endl;
+//        if(groups.size() > 5) {
+//            cout << "PROOOOOZBLLLLLEEEEEMMMMMM" << endl;
+//        }
 	}
     mapIt = groups.begin();
+//    for(auto g = groups.begin(); g!= groups.end(); g++) {
+//    		cout << g->first << endl;
+//    		cout << "Count, max, min, sum: " << endl;
+//    		cout << g->second.count << endl;
+//    		cout << g->second.max << endl;
+//    		cout << g->second.min << endl;
+//    		cout << g->second.sum << endl;
+//
+////    		g->second.count = g->first;
+////    		g->second.max = g->first;
+////    		g->second.min = g->first;
+////    		g->second.sum = g->first;
+//
+//    }
+//    for(auto g = groups.begin(); g!= groups.end(); g++) {
+//        		cout << g->first << endl;
+//        		cout << "Count, max, min, sum: " << endl;
+//        		cout << g->second.count << endl;
+//        		cout << g->second.max << endl;
+//        		cout << g->second.min << endl;
+//        		cout << g->second.sum << endl;
+//    }
 }
 
 
@@ -1162,12 +1256,12 @@ void Aggregate::getAttributeValueGrouped(void* data, void* returnedData, vector<
 		}
 		i++;
 	}
-	cout << "Reached Here" << endl;
+//	cout << "Reached Here" << endl;
 	char c;
 	if(bitVector[i] == 0) {
 		c = 0;
 		memcpy((char*)returnedData, &c, 1);
-		cout << "Data val: " << *(int *)((char*) data + offset) << endl;
+//		cout << "Data val: " << *(int *)((char*) data + offset) << endl;
 		memcpy((char*)returnedData + 1, (char *)data + offset, sizeof(int));
 	} else {
 		c = 128;
@@ -1190,20 +1284,20 @@ void Aggregate::getAttributeValueGrouped(void* data, void* returnedData, vector<
 	int gSize = 0;
 	if(bitVector[j] == 0) {
 		if(groupAttribute.type == TypeInt || groupAttribute.type == TypeReal) {
-			cout << "Data valInt: " << *(int *)((char*) data + gOffset) << endl;
-			cout << "Data valREAL: " << *(float *)((char*) data + gOffset) << endl;
+//			cout << "Data valInt: " << *(int *)((char*) data + gOffset) << endl;
+//			cout << "Data valREAL: " << *(float *)((char*) data + gOffset) << endl;
 
 			memcpy((char*)gAttrData, (char *)data + gOffset, sizeof(int));
 			gSize = sizeof(int);
 			memcpy((char*)size, &gSize, 4);
-			cout << "gsize in gr: " << *(int *)((char*) size) << endl;
+//			cout << "gsize in gr: " << *(int *)((char*) size) << endl;
 		}
 	} else if(groupAttribute.type == TypeVarChar){
 		gSize = *(int *)((char *) data + gOffset);
 		gOffset += sizeof(int);
 		memcpy((char*)gAttrData, (char*)data + gOffset, gSize);
 		memcpy((char*)size, &gSize, 4);
-		cout << "gsize in gr: " << *(int *)((char*) size) << endl;
+//		cout << "gsize in gr: " << *(int *)((char*) size) << endl;
 	}
 
 }
@@ -1234,7 +1328,7 @@ void Aggregate::getAttributeValueGrouped(void* data, void* returnedData, vector<
 
 int BNLJoin::getTupleSize(void* tuple) {
     int numOfNullBytes = (int)ceil((double)this->leftAttributes.size()/8);
-    cout << "Num of null bytes is: " << numOfNullBytes << endl;
+//    cout << "Num of null bytes is: " << numOfNullBytes << endl;
 	int offset = numOfNullBytes;
 	int size = numOfNullBytes;
 	for(int i=0;i<this->leftAttributes.size();i++) {
@@ -1260,7 +1354,7 @@ int BNLJoin::getTupleSize(void* tuple) {
 BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn, const Condition &condition, const unsigned numPages) {
 
     this->outputFileName = condition.lhsAttr + "_" + condition.rhsAttr + "_" + to_string(autoIncId);
-    cout << "Joining output file name is: " << this->outputFileName << endl;
+//    cout << "Joining output file name is: " << this->outputFileName << endl;
     this->rbfm = RecordBasedFileManager::instance();
     this->rbfm->createFile(outputFileName);
     this->rbfm->openFile(outputFileName, this->outputFileHandle);
@@ -1307,7 +1401,7 @@ RC BNLJoin::fillBuffer() {
 	while(this->leftOffset <= this->numPages*PAGE_SIZE) {
 		result = this->leftInIter->getNextTuple((char*)this->leftBlockBuffer + this->leftOffset);
 		if(result == QE_EOF) {
-			cout << "The end\n";
+//			cout << "The end\n";
 			return -1;
 		}
 
@@ -1315,7 +1409,7 @@ RC BNLJoin::fillBuffer() {
 
 		switch(this->joinAttribute.type) {
 			case TypeInt:
-				cout << "Inserting into map: " << *(int*)((char*)attributeData + 1) << endl;
+//				cout << "Inserting into map: " << *(int*)((char*)attributeData + 1) << endl;
 				this->intMap.insert(std::pair<int, int>(*(int*)((char*)attributeData + 1), this->leftOffset));
 				break;
 			case TypeReal:
@@ -1375,7 +1469,15 @@ RC BNLJoin::joinTables() {
                     while (it->first == key) {
 //                        cout << "Insertion happening" << endl;
                         void *mergedRecord = calloc(PAGE_SIZE, 1);
-                        int size = mergeRecords2((char *) this->leftBlockBuffer + it->second, rightTuple,
+                    	int nullBits = ceil((double)(this->leftAttributes.size() + this->rightAttributes.size())/CHAR_BIT);
+			for(int i = 0; i < nullBits; i++) {
+				char c = 0;
+		//		cout << "Setting bit i: " << i << endl;
+				memcpy((char*) mergedRecord + i, &c, 1);
+			}
+		//	cout << "done111------------------------" << endl;
+
+			int size = mergeRecords2((char *) this->leftBlockBuffer + it->second, rightTuple,
                                                  this->leftAttributes, this->rightAttributes, mergedRecord);
                         if (this->outputPageOffset + size >= PAGE_SIZE) {
                             //TODO flush page to disk
@@ -1405,7 +1507,15 @@ RC BNLJoin::joinTables() {
 
                     while (itF->first == keyF) {
                         void *mergedRecord = calloc(PAGE_SIZE, 1);
-                        int size = mergeRecords2((char *) this->leftBlockBuffer + itF->second, rightTuple,
+               								int nullBits = ceil((double)(this->leftAttributes.size() + this->rightAttributes.size())/CHAR_BIT);
+						for(int i = 0; i < nullBits; i++) {
+							char c = 0;
+		//					cout << "Setting bit i: " << i << endl;
+							memcpy((char*) mergedRecord + i, &c, 1);
+						}
+					//	cout << "done222------------------------" << endl;
+
+		         int size = mergeRecords2((char *) this->leftBlockBuffer + itF->second, rightTuple,
                                                  this->leftAttributes, this->rightAttributes, mergedRecord);
                         if (this->outputPageOffset + size >= PAGE_SIZE) {
 //                            outputFileHandle.appendPage(this->outputPage);
@@ -1435,6 +1545,14 @@ RC BNLJoin::joinTables() {
                     }
                     while (itS->first == keyS) {
                         void *mergedRecord = calloc(PAGE_SIZE, 1);
+									int nullBits = ceil((double)(this->leftAttributes.size() + this->rightAttributes.size())/CHAR_BIT);
+						for(int i = 0; i < nullBits; i++) {
+							char c = 0;
+		//					cout << "Setting bit i: " << i << endl;
+							memcpy((char*) mergedRecord + i, &c, 1);
+						}
+					//	cout << "done33------------------------" << endl;
+
                         int size = mergeRecords2((char *) this->leftBlockBuffer + itS->second, rightTuple,
                                                  this->leftAttributes, this->rightAttributes, mergedRecord);
                         if (this->outputPageOffset + size >= PAGE_SIZE) {
@@ -1468,11 +1586,21 @@ int BNLJoin::autoIncId = 0;
 
 RC BNLJoin::getNextTuple(void *data) {
     RID rid;
-    return this->rbfm_scanIterator.getNextRecord(rid, data);
+    int status = rbfm_scanIterator.getNextRecord(rid, data);
+    int nullBits = ceil((double)(this->leftAttributes.size() + this->rightAttributes.size())/CHAR_BIT);
+						for(int i = 0; i < nullBits; i++) {
+							char c = 0;
+							//cout << "Setting bit i: " << i << endl;
+							memcpy((char*) data + i, &c, 1);
+						}
+					//	cout << "doneNEXT------------------------" << endl;
+
+    return status;
+
 }
 
 BNLJoin::~BNLJoin() {
-    cout << "Cleaning up!" << endl;
+//    cout << "Cleaning up!" << endl;
     free(leftBlockBuffer);
     free(outputPage);
     rbfm_scanIterator.close();

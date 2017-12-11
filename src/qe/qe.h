@@ -158,7 +158,7 @@ class IndexScan : public Iterator
             iter->close();
             delete iter;
             iter = new RM_IndexScanIterator();
-            cout<<*(int*)((char*)lowKey+1)<<endl;
+            //cout<<*(int*)((char*)lowKey+1)<<endl;
             RC rc = rm.indexScan(tableName, attrName, lowKey, highKey, lowKeyInclusive,
                            highKeyInclusive, *iter);
 
@@ -430,7 +430,10 @@ class Aggregate : public Iterator {
         void getAttributeValue(void* data, void* returnedData, vector<Attribute> attrs, unsigned int currPos);
         void getAttributeValueGrouped(void* data, void* returnedData, vector<Attribute> attrs, unsigned int currPos, unsigned int gPos, void* gAttrData, void* size);
 
+//        map <int, vector<groupStruct> > groups;
+
         map <int, groupStruct> groups;
+        map<int, vector<int> > vMap;
         map <int, int> groupsMin;
         Attribute groupAttribute;
         std::map<int, groupStruct>::iterator mapIt;

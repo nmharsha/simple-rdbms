@@ -175,7 +175,7 @@ RC RelationManager::createIndex(const string &tableName, const string &attribute
     while(rm_scanIterator.getNextTuple(rid, data) != RM_EOF) {
 //        cout << "Printing a couple of them!" << endl;
         char nullByte = *(char*)data;
-        memcpy(attributeData, (char*)data+1, PAGE_SIZE-1);
+        memcpy(attributeData, (char*)data + 1, PAGE_SIZE - 1);
         if(nullByte <= 0) {
             indexManager -> insertEntry(ixFileHandle, indexedAttr, attributeData, rid);
         } else {
@@ -388,9 +388,9 @@ RC RelationManager::deleteTable(const string &tableName)
             result.push_back(next);
 
         string tableNameInd = result[0];
-        cout << "Column index file name is: " << tableNameInd << endl;
+//        cout << "Column index file name is: " << tableNameInd << endl;
         string attributeNameInd = result[1];
-        cout << "Column index column name is: " << attributeNameInd << endl;
+//        cout << "Column index column name is: " << attributeNameInd << endl;
         if(tableNameInd == tableName) {
             if(indexManager -> destroyFile(indexFileName) != 0) {
                 cout << "Destroy index failed";
@@ -559,12 +559,12 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
             resultSet.push_back(next);
 
         string tableNameInd = resultSet[0];
-        cout << "Column index file name is: " << tableNameInd << endl;
+//        cout << "Column index file name is: " << tableNameInd << endl;
         string attributeNameInd = resultSet[1];
-        cout << "Column index column name is: " << attributeNameInd << endl;
+//        cout << "Column index column name is: " << attributeNameInd << endl;
 
         if(tableNameInd == tableName) {
-            cout << "Equals successful" << endl;
+//            cout << "Equals successful" << endl;
             IXFileHandle ixFileHandle;
             result = indexManager -> openFile(indexFileName.c_str(), ixFileHandle);
             if(result == -1) {
@@ -754,9 +754,9 @@ RC RelationManager::indexScan(const string &tableName,
 //    cout << "scan check 5" << endl;
     indexManager -> openFile(tableName + "_" + attributeName, rm_IndexScanIterator.ixFileHandle);
 //    cout << "scan check 6" << endl;
-    return indexManager -> scan(rm_IndexScanIterator.ixFileHandle, getAttributeFromName(attributes, attributeName), lowKey, highKey, lowKeyInclusive, highKeyInclusive, rm_IndexScanIterator.ix_scanIterator);
+    indexManager -> scan(rm_IndexScanIterator.ixFileHandle, getAttributeFromName(attributes, attributeName), lowKey, highKey, lowKeyInclusive, highKeyInclusive, rm_IndexScanIterator.ix_scanIterator);
 //    cout << "scan check 7" << endl;
-//    return 0;
+    return 0;
 }
 
 RC RM_IndexScanIterator::getNextEntry(RID &rid, void *key) {
