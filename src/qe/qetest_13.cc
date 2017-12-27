@@ -47,7 +47,7 @@ RC testCase_13() {
         }
     }
 
-    cout << "My Max Val: " << maxVal << endl;
+//    cout << "My Max Val: " << maxVal << endl;
     if (maxVal != 109.0) {
     	rc = fail;
     }

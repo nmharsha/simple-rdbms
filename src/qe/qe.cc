@@ -283,6 +283,23 @@ void Project::getAttributeValuesForProject2(void* data, void* returnedData){
 	int projCounter = 0;
 
 	// set null bytes here
+	int c1 = 0;
+	int p1 = 0;
+	while(c1 < attrs.size() && p1 < proj.size()) {
+		if (attrs[c1].name == proj[p1].name) {
+			if(bitVector[c1] == 1) {
+				char bite = *((char*)returnedData + p1/8);
+				bite |= 1<<(8-p1%8-1);
+				memcpy((char*) returnedData + p1/8, &bite, 1);
+			}
+			p1++;
+		}
+		c1++;
+	}
+
+
+
+
 
 
 	////
@@ -317,7 +334,19 @@ void Project::getAttributeValuesForProject2(void* data, void* returnedData){
 				}
 				offset += sizeof(int);
 			} else if(curr.type == TypeVarChar){
-				cout << "Not here though\n\n\n";
+				int len = *(int*)((char*)data + offset);
+
+				void *entryPtr;
+				entryPtr = calloc(len + sizeof(int), 1);
+				memcpy(entryPtr, (char *) data + offset, sizeof(int) + len);
+
+				if(foundAttr) {
+					memcpy((char *) returnedData + returnOffset, entryPtr, sizeof(int) + len);
+					returnOffset += (sizeof(int) + len);
+				}
+
+				free(entryPtr);
+				offset += (sizeof(int) + len);
 			}
 		}
 		counter++;
@@ -638,10 +667,10 @@ INLJoin::INLJoin(Iterator *leftIn,           // Iterator of input R
 	while(leftIn->getNextTuple(leftRecord) == 0) {
 		void* attributeData = calloc(PAGE_SIZE, 1);
 
-        cout<<"key = "<<*(float*)((char*)leftRecord+5)<<endl;
+//        cout<<"key = "<<*(float*)((char*)leftRecord+5)<<endl;
 
 		getAttributeFromRecord(leftRecord, attributeData, condition.lhsAttr, leftAttrs);
-        cout<<"lowkey = "<<*(float*)((char*)attributeData+1)<<endl;
+//        cout<<"lowkey = "<<*(float*)((char*)attributeData+1)<<endl;
 
         rightIn->setIterator((char*)attributeData+1, (char*)attributeData+1, true, true);
         IndexManager* indexManager = IndexManager::instance();

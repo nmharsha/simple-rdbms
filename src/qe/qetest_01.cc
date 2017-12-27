@@ -37,7 +37,7 @@ int testCase_1() {
     a.name="B";
     a.type = TypeInt;
     a.length=4;
-    indexManager->printBtree(ixFileHandle, a);
+//    indexManager->printBtree(ixFileHandle, a);
 
 
 	// Create an index after inserting tuples - should reflect the currently existing tuples.
